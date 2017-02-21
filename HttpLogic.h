@@ -169,6 +169,7 @@ private:
 
 	inline void newRequest();
 protected:
+	inline void sendChunk(const char*, uint32_t);
 	inline void sendChunk(const char*);
 public:
 	inline AuthStatus getAuthStatus();
@@ -231,11 +232,18 @@ startChunk(uint32_t size)
 
 template<class Provider, class Resources>
 inline void HttpLogic<Provider, Resources>::
+sendChunk(const char* str, uint32_t length)
+{
+	startChunk(length);
+	((Provider*)this)->send(str, length);
+	finishChunk();
+}
+
+template<class Provider, class Resources>
+inline void HttpLogic<Provider, Resources>::
 sendChunk(const char* str)
 {
-	startChunk(strlen(str));
-	((Provider*)this)->send(str, strlen(str));
-	finishChunk();
+	sendChunk(str, strlen(str));
 }
 
 template<class Provider, class Resources>
