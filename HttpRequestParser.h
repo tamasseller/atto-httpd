@@ -8,7 +8,7 @@
 #ifndef HTTPREQUESTPARSER_H_
 #define HTTPREQUESTPARSER_H_
 
-#include "http_parser.h"
+#include "http-parser/http_parser.h"
 
 template<class Child>
 class HttpRequestParser: http_parser {

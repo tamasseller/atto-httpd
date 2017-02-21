@@ -24,8 +24,6 @@ SOURCES += ../md5/md5.c
 SOURCES += ../http-parser/http_parser.c
 
 INCLUDE_DIRS += ..
-INCLUDE_DIRS += ../http-parser
-INCLUDE_DIRS += ../md5
 INCLUDE_DIRS += ../pet
 
 LIBS += CppUTest
