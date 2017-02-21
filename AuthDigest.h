@@ -28,8 +28,6 @@
 
 #include "md5/md5.h"
 
-#include <iostream>
-
 template<class AuthProvider>
 class AuthDigest: public 	Splitter<AuthDigest<AuthProvider> >,
 							KvParser<AuthDigest<AuthProvider> > {

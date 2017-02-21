@@ -234,9 +234,11 @@ template<class Provider, class Resources>
 inline void HttpLogic<Provider, Resources>::
 sendChunk(const char* str, uint32_t length)
 {
-	startChunk(length);
-	((Provider*)this)->send(str, length);
-	finishChunk();
+	if(length) {
+		startChunk(length);
+		((Provider*)this)->send(str, length);
+		finishChunk();
+	}
 }
 
 template<class Provider, class Resources>
