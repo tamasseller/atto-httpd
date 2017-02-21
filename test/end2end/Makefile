@@ -2,13 +2,13 @@ OUTPUT = httpd-end2end
 
 SOURCES += End2end.cpp
 
-SOURCES += ../../../../lib/md5/md5.c
-SOURCES += ../../../../lib/http-parser/http_parser.c
+SOURCES += ../../md5/md5.c
+SOURCES += ../../http-parser/http_parser.c
 
 INCLUDE_DIRS += ../..
-INCLUDE_DIRS += ../../../../lib/http-parser
-INCLUDE_DIRS += ../../../../lib/md5
-INCLUDE_DIRS += ../../../../lib/pet
+INCLUDE_DIRS += ../../http-parser
+INCLUDE_DIRS += ../../md5
+INCLUDE_DIRS += ../../pet
 
 COMMONFLAGS += -O0
 COMMONFLAGS += -g3

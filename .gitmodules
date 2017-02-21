@@ -1,3 +1,9 @@
 [submodule "ultimate-makefile"]
 	path = ultimate-makefile
 	url = https://github.com/tamasseller/ultimate-makefile
+[submodule "http-parser"]
+	path = http-parser
+	url = https://github.com/nodejs/http-parser.git
+[submodule "pet"]
+	path = pet
+	url = https://github.com/tamasseller/pet
