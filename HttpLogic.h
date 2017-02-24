@@ -33,9 +33,9 @@
 typedef http_status HttpStatus;
 
 template<class Provider, class Resources>
-class HttpLogic: public HttpRequestParser<HttpLogic<Provider, Resources> >, // 40
-					UrlParser<HttpLogic<Provider, Resources> >, // 1
-					PathParser<HttpLogic<Provider, Resources> > // 1
+class HttpLogic: public HttpRequestParser<HttpLogic<Provider, Resources> >,
+					UrlParser<HttpLogic<Provider, Resources> >,
+					PathParser<HttpLogic<Provider, Resources> >
 {
 public:
 	enum class AuthStatus: uint8_t {
@@ -85,16 +85,17 @@ private:
 	typedef Keywords<Depth, 3> DepthKeywords;
 	static const DepthKeywords depthKeywords;
 
-	bool parseSource; // 1
-	bool overwrite; // 1
-	AuthStatus authState; // 1
-	Depth depth; // 1
+	bool parseSource;
+	bool overwrite;
+	AuthStatus authState;
+	Depth depth;
 
-	HeaderFieldParser fieldParser; // 8
-	typename Resources::ResourceLocator sourceResource, destinationResource; // 64
+	HeaderFieldParser fieldParser;
+	typename Resources::SourceLocator sourceResource;
+	typename Resources::DestinationLocator destinationResource;
 
-	HttpStatus status; // 4
-	TemporaryStringBuffer<32> tempString; // 36
+	HttpStatus status;
+	TemporaryStringBuffer<32> tempString;
 
 	union {
 		// Only used during headerName matching, result can
@@ -103,7 +104,7 @@ private:
 
 		// Only used for auth field processing, the result is copied into
 		// authState property immediately in the afterHeaderValue method
-		AuthDigest<Resources> authFieldValidator; // 176 bytes
+		AuthDigest<Resources> authFieldValidator;
 
 		// Only used for the overwrite field processing, the result is copied
 		// into overwrite property immediately in the afterHeaderValue method

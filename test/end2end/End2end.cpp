@@ -70,6 +70,9 @@ struct Types {
 		DavProperty("DAV:", "getlastmodified"),
 		DavProperty("DAV:", "resourcetype")
 	};
+
+	typedef ResourceLocator SourceLocator;
+	typedef ResourceLocator DestinationLocator;
 };
 
 constexpr const DavProperty Types::davProperties[3];

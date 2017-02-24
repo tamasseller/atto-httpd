@@ -38,10 +38,15 @@ namespace {
 		struct ResourceLocator {
 			std::string path;
 		};
+
+		typedef ResourceLocator SourceLocator;
+		typedef ResourceLocator DestinationLocator;
 	};
 
 	struct MockedHttpLogic: public HttpLogic<MockedHttpLogic, Types> {
 		using ResourceLocator = Types::ResourceLocator;
+		using SourceLocator = Types::SourceLocator;
+		using DestinationLocator = Types::DestinationLocator;
 
 		enum ErrAt {
 			None,
@@ -79,19 +84,19 @@ namespace {
 			return HTTP_STATUS_OK;
 		}
 
-		static HttpStatus createDirectory(ResourceLocator* rl, const char* dstName, uint32_t length) {
+		static HttpStatus createDirectory(DestinationLocator* rl, const char* dstName, uint32_t length) {
 			mock("ContentProvider").actualCall("createDirectory")
 			.withStringParameter("path", (rl->path + std::string("/") + std::string(dstName, length)).c_str());
 			return HTTP_STATUS_OK;
 		}
 
-		static HttpStatus remove(ResourceLocator* rl, const char* dstName, uint32_t length) {
+		static HttpStatus remove(DestinationLocator* rl, const char* dstName, uint32_t length) {
 			mock("ContentProvider").actualCall("remove")
 			.withStringParameter("path", (rl->path + std::string("/") + std::string(dstName, length)).c_str());
 			return HTTP_STATUS_OK;
 		}
 
-		static HttpStatus copy(ResourceLocator* src, ResourceLocator* dstDir, const char* dstName, uint32_t length, bool overwrite) {
+		static HttpStatus copy(SourceLocator* src, DestinationLocator* dstDir, const char* dstName, uint32_t length, bool overwrite) {
 			mock("ContentProvider").actualCall("copy")
 			.withStringParameter("src", src->path.c_str())
 			.withStringParameter("dst", (dstDir->path + std::string("/") + std::string(dstName, length)).c_str())
@@ -99,7 +104,7 @@ namespace {
 			return HTTP_STATUS_OK;
 		}
 
-		static HttpStatus move(ResourceLocator* src, ResourceLocator* dstDir, const char* dstName, uint32_t length, bool overwrite) {
+		static HttpStatus move(SourceLocator* src, DestinationLocator* dstDir, const char* dstName, uint32_t length, bool overwrite) {
 			mock("ContentProvider").actualCall("move")
 			.withStringParameter("src", src->path.c_str())
 			.withStringParameter("dst", (dstDir->path + std::string("/") + std::string(dstName, length)).c_str())
@@ -109,7 +114,7 @@ namespace {
 
 		// Upload
 
-		static HttpStatus arrangeReceiveInto(ResourceLocator* rl, const char* dstName, uint32_t length) {
+		static HttpStatus arrangeReceiveInto(DestinationLocator* rl, const char* dstName, uint32_t length) {
 			resource = rl;
 			mock("ContentProvider").actualCall("receiveInto")
 			.withStringParameter("path", (rl->path + std::string("/") + std::string(dstName, length)).c_str());
@@ -119,14 +124,14 @@ namespace {
 			return errAt != ErrAt::OpenForWriting ? HTTP_STATUS_OK : HTTP_STATUS_FORBIDDEN;
 		}
 
-		static HttpStatus writeContent(ResourceLocator* rl, const char* buff, uint32_t length) {
+		static HttpStatus writeContent(DestinationLocator* rl, const char* buff, uint32_t length) {
 			temp += std::string(buff, length);
 			CHECK(resource == rl);
 			workerCalled = true;
 			return errAt != ErrAt::Writing  ? HTTP_STATUS_OK : HTTP_STATUS_FORBIDDEN;
 		}
 
-		static HttpStatus contentWritten(ResourceLocator* rl) {
+		static HttpStatus contentWritten(DestinationLocator* rl) {
 			content = temp;
 			CHECK(resource == rl);
 			mock("ContentProvider").actualCall("contentWritten");
@@ -135,7 +140,7 @@ namespace {
 
 		// Download
 
-		static HttpStatus arrangeSendFrom(ResourceLocator* rl, uint32_t &size) {
+		static HttpStatus arrangeSendFrom(SourceLocator* rl, uint32_t &size) {
 			resource = rl;
 			mock("ContentProvider").actualCall("sendFrom")
 			.withStringParameter("path", rl->path.c_str());
@@ -143,13 +148,13 @@ namespace {
 			return errAt != ErrAt::OpenForReading ? HTTP_STATUS_OK : HTTP_STATUS_FORBIDDEN;
 		}
 
-		static HttpStatus readContent(ResourceLocator* rl) {
+		static HttpStatus readContent(SourceLocator* rl) {
 			CHECK(resource == rl);
 			workerCalled = true;
 			return errAt != ErrAt::Reading ? HTTP_STATUS_OK : HTTP_STATUS_FORBIDDEN;
 		}
 
-		static HttpStatus contentRead(ResourceLocator* rl) {
+		static HttpStatus contentRead(SourceLocator* rl) {
 			CHECK(resource == rl);
 			mock("ContentProvider").actualCall("contentRead");
 			return errAt != ErrAt::CloseForReading ? HTTP_STATUS_OK : HTTP_STATUS_FORBIDDEN;
@@ -157,7 +162,7 @@ namespace {
 
 		// Listing
 
-		static HttpStatus arrangeFileListing(ResourceLocator* rl) {
+		static HttpStatus arrangeFileListing(SourceLocator* rl) {
 			resource = rl;
 			mock("ContentProvider").actualCall("listFile")
 			.withStringParameter("path", rl->path.c_str());
@@ -165,7 +170,7 @@ namespace {
 			return errAt != ErrAt::OpenForListing ? HTTP_STATUS_OK : HTTP_STATUS_FORBIDDEN;
 		}
 
-		static HttpStatus arrangeDirectoryListing(ResourceLocator* rl) {
+		static HttpStatus arrangeDirectoryListing(SourceLocator* rl) {
 			resource = rl;
 			mock("ContentProvider").actualCall("listDirectory")
 			.withStringParameter("path", rl->path.c_str());
@@ -174,31 +179,31 @@ namespace {
 		}
 
 
-		static HttpStatus generateFileListing(ResourceLocator* rl, const DavProperty* prop) {
+		static HttpStatus generateFileListing(SourceLocator* rl, const DavProperty* prop) {
 			CHECK(resource == rl);
 			CHECK(!prop || prop == Types::davProperties);
 			workerCalled = true;
 			return errAt != ErrAt::Listing ? HTTP_STATUS_OK : HTTP_STATUS_FORBIDDEN;
 		}
 
-		static HttpStatus generateDirectoryListing(ResourceLocator* rl, const DavProperty* prop) {
+		static HttpStatus generateDirectoryListing(SourceLocator* rl, const DavProperty* prop) {
 			CHECK(resource == rl);
 			CHECK(!prop || prop == Types::davProperties);
 			workerCalled = true;
 			return errAt != ErrAt::Listing ? HTTP_STATUS_OK : HTTP_STATUS_FORBIDDEN;
 		}
 
-		bool stepListing(ResourceLocator* rl) {
+		bool stepListing(SourceLocator* rl) {
 			return false;
 		}
 
-		static HttpStatus fileListingDone(ResourceLocator* rl) {
+		static HttpStatus fileListingDone(SourceLocator* rl) {
 			CHECK(resource == rl);
 			mock("ContentProvider").actualCall("listingDone");
 			return errAt != ErrAt::CloseForListing ? HTTP_STATUS_OK : HTTP_STATUS_FORBIDDEN;
 		}
 
-		static HttpStatus directoryListingDone(ResourceLocator* rl) {
+		static HttpStatus directoryListingDone(SourceLocator* rl) {
 			CHECK(resource == rl);
 			mock("ContentProvider").actualCall("listingDone");
 			return errAt != ErrAt::CloseForListing ? HTTP_STATUS_OK : HTTP_STATUS_FORBIDDEN;

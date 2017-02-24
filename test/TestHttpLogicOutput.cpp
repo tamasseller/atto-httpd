@@ -35,6 +35,9 @@ namespace {
 			DavProperty("DAV:", "getcontentlength"),
 			DavProperty("foo://bar", "otherprop")
 		};
+
+		typedef ResourceLocator SourceLocator;
+		typedef ResourceLocator DestinationLocator;
 	};
 
 	constexpr const DavProperty Types::davProperties[2];
