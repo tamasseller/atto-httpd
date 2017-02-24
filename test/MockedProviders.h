@@ -157,20 +157,31 @@ namespace {
 
 		// Listing
 
-		static HttpStatus arrangeListing(ResourceLocator* rl, bool contents) {
+		static HttpStatus arrangeFileListing(ResourceLocator* rl) {
 			resource = rl;
-			if(contents) {
-				mock("ContentProvider").actualCall("listDirectory")
-				.withStringParameter("path", rl->path.c_str());
-			} else {
-				mock("ContentProvider").actualCall("listFile")
-				.withStringParameter("path", rl->path.c_str());
-			}
+			mock("ContentProvider").actualCall("listFile")
+			.withStringParameter("path", rl->path.c_str());
 			workerCalled = false;
 			return errAt != ErrAt::OpenForListing ? HTTP_STATUS_OK : HTTP_STATUS_FORBIDDEN;
 		}
 
-		static HttpStatus generateListing(ResourceLocator* rl, const DavProperty* prop) {
+		static HttpStatus arrangeDirectoryListing(ResourceLocator* rl) {
+			resource = rl;
+			mock("ContentProvider").actualCall("listDirectory")
+			.withStringParameter("path", rl->path.c_str());
+			workerCalled = false;
+			return errAt != ErrAt::OpenForListing ? HTTP_STATUS_OK : HTTP_STATUS_FORBIDDEN;
+		}
+
+
+		static HttpStatus generateFileListing(ResourceLocator* rl, const DavProperty* prop) {
+			CHECK(resource == rl);
+			CHECK(!prop || prop == Types::davProperties);
+			workerCalled = true;
+			return errAt != ErrAt::Listing ? HTTP_STATUS_OK : HTTP_STATUS_FORBIDDEN;
+		}
+
+		static HttpStatus generateDirectoryListing(ResourceLocator* rl, const DavProperty* prop) {
 			CHECK(resource == rl);
 			CHECK(!prop || prop == Types::davProperties);
 			workerCalled = true;
@@ -181,7 +192,13 @@ namespace {
 			return false;
 		}
 
-		static HttpStatus listingDone(ResourceLocator* rl) {
+		static HttpStatus fileListingDone(ResourceLocator* rl) {
+			CHECK(resource == rl);
+			mock("ContentProvider").actualCall("listingDone");
+			return errAt != ErrAt::CloseForListing ? HTTP_STATUS_OK : HTTP_STATUS_FORBIDDEN;
+		}
+
+		static HttpStatus directoryListingDone(ResourceLocator* rl) {
 			CHECK(resource == rl);
 			mock("ContentProvider").actualCall("listingDone");
 			return errAt != ErrAt::CloseForListing ? HTTP_STATUS_OK : HTTP_STATUS_FORBIDDEN;

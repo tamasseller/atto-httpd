@@ -256,48 +256,53 @@ class HttpSession: protected HttpLogic<HttpSession, Types>
 		return HTTP_STATUS_OK;
 	}
 
-	HttpStatus arrangeListing(ResourceLocator* rl, bool contents)
+	HttpStatus arrangeFileListing(ResourceLocator* rl)
 	{
 		std::cout << "arrange " << rl->fd << std::endl;
 
-		if(contents) {
-			rl->dir = fdopendir(rl->fd);
-			std::cout << "arrange dir" << rl->dir << std::endl;
+		if(!rl->fetchName() || !strstr(rl->name, davRootName))
+			return HTTP_STATUS_FORBIDDEN;
 
-			if(!rl->dir) {
-				std::cerr << "Unable to open directory for listing: " << strerror(errno) << std::endl;
+		memmove(rl->name, rl->name+strlen(davRootName), strlen(rl->name)-strlen(davRootName)+1);
+
+		if(!strlen(rl->name))
+			strcat(rl->name, "/");
+
+		if(fstat(rl->fd, &rl->st) < 0) {
+			std::cerr << "Could not stat " << rl->name << ": " << strerror(errno) << std::endl;
+			return HTTP_STATUS_FORBIDDEN;
+		}
+
+		rl->dir = nullptr;
+
+		return HTTP_STATUS_MULTI_STATUS;
+	}
+
+	HttpStatus arrangeDirectoryListing(ResourceLocator* rl)
+	{
+		std::cout << "arrange " << rl->fd << std::endl;
+
+		rl->dir = fdopendir(rl->fd);
+		std::cout << "arrange dir" << rl->dir << std::endl;
+
+		if(!rl->dir) {
+			std::cerr << "Unable to open directory for listing: " << strerror(errno) << std::endl;
+			close(rl->fd);
+			return HTTP_STATUS_FORBIDDEN;
+		}
+
+		rewinddir(rl->dir);
+		struct dirent *de = readdir(rl->dir);
+		if(de) {
+			strcpy(rl->name, de->d_name);
+			if(stat(de->d_name, &rl->st) < 0) {
+				std::cerr << "Could not stat " << de->d_name << ": " << strerror(errno) << std::endl;
+				closedir(rl->dir);
 				close(rl->fd);
 				return HTTP_STATUS_FORBIDDEN;
 			}
-
-			rewinddir(rl->dir);
-			struct dirent *de = readdir(rl->dir);
-			if(de) {
-				strcpy(rl->name, de->d_name);
-				if(stat(de->d_name, &rl->st) < 0) {
-					std::cerr << "Could not stat " << de->d_name << ": " << strerror(errno) << std::endl;
-					closedir(rl->dir);
-					close(rl->fd);
-					return HTTP_STATUS_FORBIDDEN;
-				}
-			}
-
-		} else {
-			if(!rl->fetchName() || !strstr(rl->name, davRootName))
-				return HTTP_STATUS_FORBIDDEN;
-
-			memmove(rl->name, rl->name+strlen(davRootName), strlen(rl->name)-strlen(davRootName)+1);
-
-			if(!strlen(rl->name))
-				strcat(rl->name, "/");
-
-			if(fstat(rl->fd, &rl->st) < 0) {
-				std::cerr << "Could not stat " << rl->name << ": " << strerror(errno) << std::endl;
-				return HTTP_STATUS_FORBIDDEN;
-			}
-
-			rl->dir = nullptr;
 		}
+
 		return HTTP_STATUS_MULTI_STATUS;
 	}
 
@@ -324,6 +329,16 @@ class HttpSession: protected HttpLogic<HttpSession, Types>
 		return HTTP_STATUS_OK;
 	}
 
+	HttpStatus generateDirectoryListing(ResourceLocator* rl, const DavProperty* prop)
+	{
+		return generateListing(rl, prop);
+	}
+
+	HttpStatus generateFileListing(ResourceLocator* rl, const DavProperty* prop)
+	{
+		return generateListing(rl, prop);
+	}
+
 	bool stepListing(ResourceLocator* rl)
 	{
 		std::cout << "step " << rl->fd << std::endl;
@@ -344,7 +359,14 @@ class HttpSession: protected HttpLogic<HttpSession, Types>
 		}
 	}
 
-	HttpStatus listingDone(ResourceLocator* rl)
+	HttpStatus fileListingDone(ResourceLocator* rl)
+	{
+		std::cout << "done " << rl->fd << std::endl;
+		close(rl->fd);
+		return HTTP_STATUS_MULTI_STATUS;
+	}
+
+	HttpStatus directoryListingDone(ResourceLocator* rl)
 	{
 		std::cout << "done " << rl->fd << std::endl;
 		close(rl->fd);

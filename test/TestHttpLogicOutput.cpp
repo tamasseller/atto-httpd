@@ -108,7 +108,12 @@ TEST_GROUP(HttpLogicOutput) {
 
 		// Listing
 
-		HttpStatus arrangeListing(ResourceLocator* rl, bool contents) {
+		HttpStatus arrangeDirectoryListing(ResourceLocator* rl) {
+			rl->n = 0;
+			return HTTP_STATUS_MULTI_STATUS;
+		}
+
+		HttpStatus arrangeFileListing(ResourceLocator* rl) {
 			rl->n = 0;
 			return HTTP_STATUS_MULTI_STATUS;
 		}
@@ -129,6 +134,16 @@ TEST_GROUP(HttpLogicOutput) {
 			return HTTP_STATUS_OK;
 		}
 
+		HttpStatus generateFileListing(ResourceLocator* rl, const DavProperty* prop) {
+			return generateListing(rl, prop);
+		}
+
+		HttpStatus generateDirectoryListing(ResourceLocator* rl, const DavProperty* prop)
+		{
+			return generateListing(rl, prop);
+		}
+
+
 		bool stepListing(ResourceLocator* rl) {
 			if(rl->n != 1) {
 				rl->n++;
@@ -138,7 +153,11 @@ TEST_GROUP(HttpLogicOutput) {
 			}
 		}
 
-		HttpStatus listingDone(ResourceLocator* rl) {
+		HttpStatus fileListingDone(ResourceLocator* rl) {
+			return HTTP_STATUS_MULTI_STATUS;
+		}
+
+		HttpStatus directoryListingDone(ResourceLocator* rl) {
 			return HTTP_STATUS_MULTI_STATUS;
 		}
 

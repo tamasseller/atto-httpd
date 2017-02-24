@@ -225,7 +225,7 @@ inline void HttpLogic<Provider, Resources>::
 startChunk(uint32_t size)
 {
 	char temp[8];
-	algorithm::Str::utoa<16>(size, temp, sizeof(temp));
+	pet::Str::utoa<16>(size, temp, sizeof(temp));
 	((Provider*)this)->send(temp, strlen(temp));
 	((Provider*)this)->send(crLf, strlen(crLf));
 }
@@ -567,10 +567,10 @@ inline void HttpLogic<Provider, Resources>::afterRequest() {
 				else {
 					switch(depth) {
 						case Depth::File:
-							status = ((Provider*)this)->arrangeListing(&sourceResource, false);
+							status = ((Provider*)this)->arrangeFileListing(&sourceResource);
 							break;
 						case Depth::Directory:
-							status = ((Provider*)this)->arrangeListing(&sourceResource, true);
+							status = ((Provider*)this)->arrangeDirectoryListing(&sourceResource);
 							break;
 						case Depth::Traverse:
 							status = HTTP_STATUS_NOT_IMPLEMENTED;
@@ -602,7 +602,7 @@ inline void HttpLogic<Provider, Resources>::afterRequest() {
 				constexpr const char* contentLengthStr = "Content-Length: ";
 				char temp[12];
 				((Provider*)this)->send(contentLengthStr, strlen(contentLengthStr));
-				algorithm::Str::utoa<10>(length, temp, sizeof(temp));
+				pet::Str::utoa<10>(length, temp, sizeof(temp));
 				((Provider*)this)->send(temp, strlen(temp));
 				((Provider*)this)->send(crLf, strlen(crLf));
 				break;
@@ -649,9 +649,15 @@ inline void HttpLogic<Provider, Resources>::afterRequest() {
 				while(!error) {
 					sendChunk(xmlFileHeader);
 
-					if(isError(((Provider*)this)->generateListing(&sourceResource, nullptr))) {
+					HttpStatus ret;
+
+					if(depth == Depth::File)
+						ret = ((Provider*)this)->generateFileListing(&sourceResource, nullptr);
+					else
+						ret = ((Provider*)this)->generateDirectoryListing(&sourceResource, nullptr);
+
+					if(isError(ret))
 						error = true;
-					}
 
 					sendChunk(xmlFileKnownPropHeader);
 
@@ -660,7 +666,14 @@ inline void HttpLogic<Provider, Resources>::afterRequest() {
 							for(unsigned int i=0; i<sizeof(Resources::davProperties)/sizeof(Resources::davProperties[0]); i++) {
 								auto prop = Resources::davProperties + i;
 								sendPropStart(prop);
-								if(isError(((Provider*)this)->generateListing(&sourceResource, prop))) {
+								HttpStatus ret;
+
+								if(depth == Depth::File)
+									ret = ((Provider*)this)->generateFileListing(&sourceResource, prop);
+								else
+									ret = ((Provider*)this)->generateDirectoryListing(&sourceResource, prop);
+
+								if(isError(ret)) {
 									error = true;
 									break;
 								}
@@ -695,7 +708,14 @@ inline void HttpLogic<Provider, Resources>::afterRequest() {
 										continue;
 
 									sendPropStart(prop);
-									if(isError(((Provider*)this)->generateListing(&sourceResource, prop))) {
+									HttpStatus ret;
+
+									if(depth == Depth::File)
+										ret = ((Provider*)this)->generateFileListing(&sourceResource, prop);
+									else
+										ret = ((Provider*)this)->generateDirectoryListing(&sourceResource, prop);
+
+									if(isError(ret)) {
 										error = true;
 										break;
 									}
@@ -771,8 +791,17 @@ inline void HttpLogic<Provider, Resources>::afterRequest() {
 				startChunk(0);
 				finishChunk();
 
-				if(!error && isError(((Provider*)this)->listingDone(&sourceResource)))
-					error = true;
+
+				if(!error) {
+					HttpStatus ret;
+					if(depth == Depth::File)
+						ret = ((Provider*)this)->fileListingDone(&sourceResource);
+					else
+						ret = ((Provider*)this)->directoryListingDone(&sourceResource);
+
+					if(isError(ret))
+						error = true;
+				}
 
 				break;
 			default:;
