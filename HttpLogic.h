@@ -169,6 +169,7 @@ private:
 	inline void sendPropEnd(const DavProperty* prop);
 
 	inline void newRequest();
+	inline bool generatePropfindResponse(bool file, typename DavReqParser::Type type);
 protected:
 	inline void sendChunk(const char*, uint32_t);
 	inline void sendChunk(const char*);
@@ -525,6 +526,147 @@ inline int HttpLogic<Provider, Resources>::onBody(const char *at, size_t length)
 	return 0;
 }
 
+template<class Provider, class Resources>
+inline bool HttpLogic<Provider, Resources>::generatePropfindResponse(bool file, typename DavReqParser::Type type) {
+	bool error = false;
+	while(!error) {
+		sendChunk(xmlFileHeader);
+
+		HttpStatus ret = file ?
+				((Provider*)this)->generateFileListing(&sourceResource, nullptr) :
+				((Provider*)this)->generateDirectoryListing(&sourceResource, nullptr);
+
+		if(isError(ret))
+			error = true;
+
+		sendChunk(xmlFileKnownPropHeader);
+
+		switch(type) {
+			case DavReqParser::Type::Allprop:
+				for(unsigned int i=0; i<sizeof(Resources::davProperties)/sizeof(Resources::davProperties[0]); i++) {
+					auto prop = Resources::davProperties + i;
+					sendPropStart(prop);
+
+					HttpStatus ret = file ?
+							((Provider*)this)->generateFileListing(&sourceResource, prop) :
+							((Provider*)this)->generateDirectoryListing(&sourceResource, prop);
+
+					if(isError(ret)) {
+						error = true;
+						break;
+					}
+					sendPropEnd(prop);
+				}
+				sendChunk(xmlFileKnownPropTrailer);
+				break;
+			case DavReqParser::Type::Propname:
+				for(unsigned int i=0; i<sizeof(Resources::davProperties)/sizeof(Resources::davProperties[0]); i++) {
+					auto prop = Resources::davProperties + i;
+					sendPropStart(prop);
+					sendPropEnd(prop);
+				}
+				sendChunk(xmlFileKnownPropTrailer);
+				break;
+			case DavReqParser::Type::Prop:
+				/*
+				 * Generate response entries for known properties
+				 */
+				for(auto it = davReqParser.propertyIterator(); it.isValid(); davReqParser.step(it)) {
+					for(unsigned int i=0; i<sizeof(Resources::davProperties)/sizeof(Resources::davProperties[0]); i++) {
+						auto prop = Resources::davProperties + i;
+						const char* str;
+						uint32_t len;
+
+						it.getName(str, len);
+						if(strlen(prop->name) != len || strncmp(prop->name, str, len) != 0)
+							continue;
+
+						it.getNs(str, len);
+						if(strlen(prop->xmlns) != len || strncmp(prop->xmlns, str, len) != 0)
+							continue;
+
+						sendPropStart(prop);
+
+						HttpStatus ret = file ?
+								((Provider*)this)->generateFileListing(&sourceResource, prop) :
+								((Provider*)this)->generateDirectoryListing(&sourceResource, prop);
+
+						if(isError(ret)) {
+							error = true;
+							break;
+						}
+
+						sendPropEnd(prop);
+					}
+				}
+
+				sendChunk(xmlFileKnownPropTrailer);
+
+				/*
+				 * Generate entries with 404 status for unknown properties
+				 */
+
+				sendChunk(xmlFileUnknownPropHeader);
+
+				for(auto it = davReqParser.propertyIterator(); it.isValid(); davReqParser.step(it)) {
+					bool found = false;
+
+					const char *name, *ns;
+					uint32_t nameLen, nsLen;
+
+					it.getName(name, nameLen);
+					it.getNs(ns, nsLen);
+
+					for(unsigned int i=0; i<sizeof(Resources::davProperties)/sizeof(Resources::davProperties[0]); i++) {
+						auto prop = Resources::davProperties + i;
+						if(strlen(prop->name) == nameLen && strncmp(prop->name, name, nameLen) == 0) {
+							if(strlen(prop->xmlns) == nsLen && strncmp(prop->xmlns, ns, nsLen) == 0) {
+								found = true;
+								break;
+							}
+						}
+					}
+
+					if(!found) {
+						constexpr const char *preName = "<";
+						constexpr const char *postName = " xmlns='";
+						constexpr const char *postNs = "'/>";
+
+						startChunk(	strlen(preName)
+									+ nameLen
+									+ strlen(postName)
+									+ nsLen
+									+ strlen(postNs));
+
+						((Provider*)this)->send(preName, strlen(preName));
+						((Provider*)this)->send(name, nameLen);
+						((Provider*)this)->send(postName, strlen(postName));
+						((Provider*)this)->send(ns, nsLen);
+						((Provider*)this)->send(postNs, strlen(postNs));
+
+						finishChunk();
+					}
+				}
+
+				sendChunk(xmlFileUnknownPropTrailer);
+
+				break;
+			default:;
+		}
+
+		sendChunk(xmlFileTrailer);
+
+		if(file)
+			break;
+
+		if(!((Provider*)this)->stepListing(&sourceResource))
+			break;
+
+	}
+
+	return !error;
+}
+
 
 template<class Provider, class Resources>
 inline void HttpLogic<Provider, Resources>::afterRequest() {
@@ -568,10 +710,8 @@ inline void HttpLogic<Provider, Resources>::afterRequest() {
 				else {
 					switch(depth) {
 						case Depth::File:
-							status = ((Provider*)this)->arrangeFileListing(&sourceResource);
-							break;
 						case Depth::Directory:
-							status = ((Provider*)this)->arrangeDirectoryListing(&sourceResource);
+							status = ((Provider*)this)->arrangeFileListing(&sourceResource);
 							break;
 						case Depth::Traverse:
 							status = HTTP_STATUS_NOT_IMPLEMENTED;
@@ -647,162 +787,29 @@ inline void HttpLogic<Provider, Resources>::afterRequest() {
 				break;
 			case HttpRequestParser<HttpLogic>::Method::HTTP_PROPFIND:
 				sendChunk(xmlFirstHeader);
-				while(!error) {
-					sendChunk(xmlFileHeader);
 
-					HttpStatus ret;
-
-					if(depth == Depth::File)
-						ret = ((Provider*)this)->generateFileListing(&sourceResource, nullptr);
-					else
-						ret = ((Provider*)this)->generateDirectoryListing(&sourceResource, nullptr);
-
-					if(isError(ret))
+				if(generatePropfindResponse(true, davReqParser.getType())) {
+					if(isError(((Provider*)this)->fileListingDone(&sourceResource)))
 						error = true;
+					else if(depth == Depth::Directory) {
+						HttpStatus ret = ((Provider*)this)->arrangeDirectoryListing(&sourceResource);
+						if(isError(ret))
+							error = true;
+						else {
+							if(ret != HTTP_STATUS_NO_CONTENT && !generatePropfindResponse(false, davReqParser.getType()))
+								error = true;
 
-					sendChunk(xmlFileKnownPropHeader);
+							if(isError(((Provider*)this)->directoryListingDone(&sourceResource)))
+								error = true;
+						}
 
-					switch(davReqParser.getType()) {
-						case DavReqParser::Type::Allprop:
-							for(unsigned int i=0; i<sizeof(Resources::davProperties)/sizeof(Resources::davProperties[0]); i++) {
-								auto prop = Resources::davProperties + i;
-								sendPropStart(prop);
-								HttpStatus ret;
-
-								if(depth == Depth::File)
-									ret = ((Provider*)this)->generateFileListing(&sourceResource, prop);
-								else
-									ret = ((Provider*)this)->generateDirectoryListing(&sourceResource, prop);
-
-								if(isError(ret)) {
-									error = true;
-									break;
-								}
-								sendPropEnd(prop);
-							}
-							sendChunk(xmlFileKnownPropTrailer);
-							break;
-						case DavReqParser::Type::Propname:
-							for(unsigned int i=0; i<sizeof(Resources::davProperties)/sizeof(Resources::davProperties[0]); i++) {
-								auto prop = Resources::davProperties + i;
-								sendPropStart(prop);
-								sendPropEnd(prop);
-							}
-							sendChunk(xmlFileKnownPropTrailer);
-							break;
-						case DavReqParser::Type::Prop:
-							/*
-							 * Generate response entries for known properties
-							 */
-							for(auto it = davReqParser.propertyIterator(); it.isValid(); davReqParser.step(it)) {
-								for(unsigned int i=0; i<sizeof(Resources::davProperties)/sizeof(Resources::davProperties[0]); i++) {
-									auto prop = Resources::davProperties + i;
-									const char* str;
-									uint32_t len;
-
-									it.getName(str, len);
-									if(strlen(prop->name) != len || strncmp(prop->name, str, len) != 0)
-										continue;
-
-									it.getNs(str, len);
-									if(strlen(prop->xmlns) != len || strncmp(prop->xmlns, str, len) != 0)
-										continue;
-
-									sendPropStart(prop);
-									HttpStatus ret;
-
-									if(depth == Depth::File)
-										ret = ((Provider*)this)->generateFileListing(&sourceResource, prop);
-									else
-										ret = ((Provider*)this)->generateDirectoryListing(&sourceResource, prop);
-
-									if(isError(ret)) {
-										error = true;
-										break;
-									}
-									sendPropEnd(prop);
-								}
-							}
-
-							sendChunk(xmlFileKnownPropTrailer);
-
-							/*
-							 * Generate entries with 404 status for unknown properties
-							 */
-
-							sendChunk(xmlFileUnknownPropHeader);
-
-							for(auto it = davReqParser.propertyIterator(); it.isValid(); davReqParser.step(it)) {
-								bool found = false;
-
-								const char *name, *ns;
-								uint32_t nameLen, nsLen;
-
-								it.getName(name, nameLen);
-								it.getNs(ns, nsLen);
-
-								for(unsigned int i=0; i<sizeof(Resources::davProperties)/sizeof(Resources::davProperties[0]); i++) {
-									auto prop = Resources::davProperties + i;
-									if(strlen(prop->name) == nameLen && strncmp(prop->name, name, nameLen) == 0) {
-										if(strlen(prop->xmlns) == nsLen && strncmp(prop->xmlns, ns, nsLen) == 0) {
-											found = true;
-											break;
-										}
-									}
-								}
-
-								if(!found) {
-									constexpr const char *preName = "<";
-									constexpr const char *postName = " xmlns='";
-									constexpr const char *postNs = "'/>";
-
-									startChunk(	strlen(preName)
-												+ nameLen
-												+ strlen(postName)
-												+ nsLen
-												+ strlen(postNs));
-
-									((Provider*)this)->send(preName, strlen(preName));
-									((Provider*)this)->send(name, nameLen);
-									((Provider*)this)->send(postName, strlen(postName));
-									((Provider*)this)->send(ns, nsLen);
-									((Provider*)this)->send(postNs, strlen(postNs));
-
-									finishChunk();
-								}
-							}
-
-							sendChunk(xmlFileUnknownPropTrailer);
-
-							break;
-						default:;
 					}
-
-					sendChunk(xmlFileTrailer);
-
-					if(depth == Depth::File)
-						break;
-
-					if(!((Provider*)this)->stepListing(&sourceResource))
-						break;
-
-				}
+				} else
+					error = true;
 
 				sendChunk(xmlLastTrailer);
 				startChunk(0);
 				finishChunk();
-
-
-				if(!error) {
-					HttpStatus ret;
-					if(depth == Depth::File)
-						ret = ((Provider*)this)->fileListingDone(&sourceResource);
-					else
-						ret = ((Provider*)this)->directoryListingDone(&sourceResource);
-
-					if(isError(ret))
-						error = true;
-				}
 
 				break;
 			default:;
