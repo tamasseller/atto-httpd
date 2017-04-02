@@ -828,6 +828,8 @@ inline void HttpLogic<Provider, Resources>::afterRequest() {
 		((Provider*)this)->send(crLf, strlen(crLf));
 	}
 
+	((Provider*)this)->flush();
+
 	newRequest();
 }
 
