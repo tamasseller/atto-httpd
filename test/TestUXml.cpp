@@ -16,8 +16,9 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *
  *******************************************************************************/
-#include "CppUTest/TestHarness.h"
-#include "CppUTestExt/MockSupport.h"
+
+#include "1test/Test.h"
+#include "1test/Mock.h"
 
 #include "UXml.h"
 
@@ -45,7 +46,7 @@ namespace {
 
 
 		inline void onTagStart() {
-			mock("uxml").actualCall("TagStart");
+			MOCK(uxml)::CALL(TagStart);
 			name.clear();
 		}
 
@@ -54,11 +55,11 @@ namespace {
 		}
 
 		inline void onTagNameEnd() {
-			mock("uxml").actualCall("TagNameEnd").withStringParameter("str", name.c_str());
+			MOCK(uxml)::CALL(TagNameEnd).withStringParam(name.c_str());
 		}
 
 		inline void onAttributeNameStart() {
-			mock("uxml").actualCall("AttrNameStart");
+			MOCK(uxml)::CALL(AttrNameStart);
 			name.clear();
 		}
 
@@ -67,11 +68,11 @@ namespace {
 		}
 
 		inline void onAttributeNameEnd() {
-			mock("uxml").actualCall("AttrNameEnd").withStringParameter("str", name.c_str());
+			MOCK(uxml)::CALL(AttrNameEnd).withStringParam(name.c_str());
 		}
 
 		inline void onAttributeValueStart() {
-			mock("uxml").actualCall("AttrValueStart");
+			MOCK(uxml)::CALL(AttrValueStart);
 			name.clear();
 		}
 
@@ -80,11 +81,11 @@ namespace {
 		}
 
 		inline void onAttributeValueEnd() {
-			mock("uxml").actualCall("AttrValueEnd").withStringParameter("str", name.c_str());
+			MOCK(uxml)::CALL(AttrValueEnd).withStringParam(name.c_str());
 		}
 
 		inline void onCloseTag() {
-			mock("uxml").actualCall("CloseTag");
+			MOCK(uxml)::CALL(CloseTag);
 			name.clear();
 		}
 	};
@@ -274,25 +275,20 @@ public:
 TEST_GROUP(UXml) {
 	Uut uut;
 
-	TEST_TEARDOWN() {
-		mock().checkExpectations();
-		mock().clear();
-	}
-
 	void expectTag(const char* name) {
-		mock("uxml").expectOneCall("TagStart");
-		mock("uxml").expectOneCall("TagNameEnd").withStringParameter("str", name);
+		MOCK(uxml)::EXPECT(TagStart);
+		MOCK(uxml)::EXPECT(TagNameEnd).withStringParam(name);
 	}
 
 	void expectAttribute(const char* name, const char* value) {
-		mock("uxml").expectOneCall("AttrNameStart");
-		mock("uxml").expectOneCall("AttrNameEnd").withStringParameter("str", name);
-		mock("uxml").expectOneCall("AttrValueStart");
-		mock("uxml").expectOneCall("AttrValueEnd").withStringParameter("str", value);
+		MOCK(uxml)::EXPECT(AttrNameStart);
+		MOCK(uxml)::EXPECT(AttrNameEnd).withStringParam(name);
+		MOCK(uxml)::EXPECT(AttrValueStart);
+		MOCK(uxml)::EXPECT(AttrValueEnd).withStringParam(value);
 	}
 
 	void expectClose() {
-		mock("uxml").expectOneCall("CloseTag");
+		MOCK(uxml)::EXPECT(CloseTag);
 	}
 
 };
@@ -329,9 +325,6 @@ TEST(UXml, Sanity) {
 		CHECK(uut.parseXml(input, i));
 		CHECK(uut.parseXml(input + i, strlen(input) - i));
 		CHECK(uut.done());
-
-		mock().checkExpectations();
-		mock().clear();
 	}
 }
 
@@ -358,9 +351,6 @@ TEST(UXml, SelfClose) {
 		CHECK(uut.parseXml(input, i));
 		CHECK(uut.parseXml(input + i, strlen(input) - i));
 		CHECK(uut.done());
-
-		mock().checkExpectations();
-		mock().clear();
 	}
 }
 
@@ -377,9 +367,6 @@ TEST(UXml, TwoLevelSelfClose) {
 		CHECK(uut.parseXml(input, i));
 		CHECK(uut.parseXml(input + i, strlen(input) - i));
 		CHECK(uut.done());
-
-		mock().checkExpectations();
-		mock().clear();
 	}
 }
 
@@ -404,9 +391,6 @@ TEST(UXml, TwoLevelSelfCloseChildren) {
 		CHECK(uut.parseXml(input, i));
 		CHECK(uut.parseXml(input + i, strlen(input) - i));
 		CHECK(uut.done());
-
-		mock().checkExpectations();
-		mock().clear();
 	}
 }
 
@@ -436,9 +420,6 @@ TEST(UXml, TwoLevelSelfCloseChildrenAttrs) {
 		CHECK(uut.parseXml(input, i));
 		CHECK(uut.parseXml(input + i, strlen(input) - i));
 		CHECK(uut.done());
-
-		mock().checkExpectations();
-		mock().clear();
 	}
 }
 
@@ -455,9 +436,6 @@ TEST(UXml, FunnyAttributeQuotes) {
 		CHECK(uut.parseXml(input, i));
 		CHECK(uut.parseXml(input + i, strlen(input) - i));
 		CHECK(uut.done());
-
-		mock().checkExpectations();
-		mock().clear();
 	}
 }
 
@@ -486,9 +464,6 @@ TEST(UXml, AlmostNamespace) {
 		CHECK(uut.parseXml(input, i));
 		CHECK(uut.parseXml(input + i, strlen(input) - i));
 		CHECK(uut.done());
-
-		mock().checkExpectations();
-		mock().clear();
 	}
 }
 
@@ -508,9 +483,6 @@ TEST(UXml, NamespaceParse) {
 		CHECK(uut.parseXml(input, i));
 		CHECK(uut.parseXml(input + i, strlen(input) - i));
 		CHECK(uut.done());
-
-		mock().checkExpectations();
-		mock().clear();
 	}
 }
 
@@ -541,16 +513,13 @@ TEST(UXml, NamespaceContext) {
 		CHECK(uut.parseXml(input, i));
 		CHECK(uut.parseXml(input + i, strlen(input) - i));
 		CHECK(uut.done());
-
-		mock().checkExpectations();
-		mock().clear();
 	}
 }
 
 TEST(UXml, NsOverload) {
 	constexpr const char* input = "<a xmlns:a='bcde'>";
 
-	mock().disable();
+	MOCK(uxml)::disable();
 
 	uut.reset();
 
@@ -563,7 +532,7 @@ TEST(UXml, NsOverload) {
 TEST(UXml, NsOverload2) {
 	constexpr const char* input = "<a xmlns:a='bcde'>";
 
-	mock().disable();
+	MOCK(uxml)::disable();
 
 	uut.reset();
 
@@ -578,7 +547,7 @@ TEST(UXml, NsOverload2) {
 TEST(UXml, NsOverload3) {
 	constexpr const char* input = "<a xmlns:a='bcdef'>";
 
-	mock().disable();
+	MOCK(uxml)::disable();
 
 	uut.reset();
 
@@ -641,8 +610,6 @@ TEST(UXml, RealDavRequest) {
 		CHECK(uut.parseXml(input + i, strlen(input) - i));
 		CHECK(uut.done());
 
-		mock().checkExpectations();
-		mock().clear();
 		CHECK(tags == expected);
 	}
 }
@@ -686,7 +653,7 @@ TEST(UXml, RealDavRequestWithSave) {
 		strcpy(last, entry.c_str());
 	};
 
-	mock().disable();
+	MOCK(uxml)::disable();
 	for(uint32_t i=0; i<strlen(input); i++) {
 		uut.reset();
 		CHECK(uut.parseXml(input, i));
@@ -698,6 +665,6 @@ TEST(UXml, RealDavRequestWithSave) {
 			last += x.length()+1;
 		}
 	}
-	mock().enable();
+	MOCK(uxml)::enable();
 }
 

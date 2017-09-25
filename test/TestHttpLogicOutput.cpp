@@ -16,9 +16,12 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *
  *******************************************************************************/
-#include "CppUTest/TestHarness.h"
+
+#include "1test/Test.h"
 
 #include "HttpLogic.h"
+
+#include <string>
 
 namespace {
 	struct Types {
@@ -76,6 +79,8 @@ TEST_GROUP(HttpLogicOutput) {
 		HttpStatus move(ResourceLocator* src, ResourceLocator* dstDir, const char* dstName, uint32_t length, bool overwrite) {
 			return HTTP_STATUS_CREATED;
 		}
+
+		void flush() {}
 
 		// Upload
 

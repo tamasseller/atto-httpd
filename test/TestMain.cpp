@@ -16,12 +16,12 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *
  *******************************************************************************/
-#include "CppUTest/CommandLineTestRunner.h"
+
+#include "1test/TestRunner.h"
 
 int main(int argc, char *argv[])
 {
-    MemoryLeakWarningPlugin::destroyGlobalDetector();
-	return CommandLineTestRunner::RunAllTests(argc, argv);
+	return pet::TestRunner::runAllTests();
 }
 
 

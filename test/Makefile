@@ -17,17 +17,17 @@ SOURCES += TestDavRequestParser.cpp
 SOURCES += TestHttpLogicOutput.cpp
 SOURCES += TestTemporaryStringBuffer.cpp
 SOURCES += TestConstantStringMatcher.cpp
-ifeq ("x","y")
-endif
 
 SOURCES += ../md5/md5.c
 SOURCES += ../http-parser/http_parser.c
 
+SOURCES += ../pet/1test/TestRunner.cpp
+SOURCES += ../pet/1test/FailureInjector.cpp
+SOURCES += ../pet/1test/TraceOutput.cpp
+
+INCLUDE_DIRS += .
 INCLUDE_DIRS += ..
 INCLUDE_DIRS += ../pet
-
-LIBS += CppUTest
-LIBS += CppUTestExt
 
 COMMONFLAGS += -O0
 COMMONFLAGS += -g3
@@ -70,15 +70,10 @@ CXXFLAGS += -fstack-check
 endif
 
 TEST_CMD_PREFIX=LD_LIBRARY_PATH=/opt/gcc-5.3.0/lib64/:/opt/gcc-5.3.0/lib32/
-CXX=/opt/gcc-5.3.0/bin/g++
-CC=/opt/gcc-5.3.0/bin/gcc
+CXX=x86_64-linux-gnu-g++-6
+CC=x86_64-linux-gnu-gcc-6
 CXXFLAGS += $(COMMONFLAGS)
 CFLAGS += $(COMMONFLAGS)
 LD=$(CXX) 
 
-CPPUTEST_FLAGS += -c
-
 include ultimate-makefile/Makefile.ultimate
-
-enter:
-	make -C toolchains enter-the-matrix

@@ -16,8 +16,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *******************************************************************************/
 
-#include "CppUTest/TestHarness.h"
-#include "CppUTestExt/MockSupport.h"
+#include "1test/Test.h"
+#include "1test/Mock.h"
 
 #include "HttpLogic.h"
 #include "MockedProviders.h"
@@ -25,11 +25,6 @@
 TEST_GROUP(HttpLogicNormal) {
 
 	MockedHttpLogic uut;
-
-	TEST_TEARDOWN() {
-		mock().checkExpectations();
-		mock().clear();
-	}
 
 	TEST_SETUP() {
 		MockedHttpLogic::errAt = MockedHttpLogic::ErrAt::None;
@@ -45,11 +40,10 @@ TEST(HttpLogicNormal, Put)
 			"BodyTest\r\n";
 
 	for(unsigned int i=0; i<strlen(testRequest); i++) {
-		mock().clear();
-		mock("ResourceLocator").expectOneCall("reset");
-		mock("ResourceLocator").expectOneCall("enter").withStringParameter("str", "foo");
-		mock("ContentProvider").expectOneCall("receiveInto").withStringParameter("path", "/foo/bar");
-		mock("ContentProvider").expectOneCall("contentWritten");
+		MOCK(ResourceLocator)::EXPECT(reset);
+		MOCK(ResourceLocator)::EXPECT(enter).withStringParam("foo");
+		MOCK(ContentProvider)::EXPECT(receiveInto).withStringParam("/foo/bar");
+		MOCK(ContentProvider)::EXPECT(contentWritten);
 
 		uut.reset();
 		uut.parse(testRequest, i);
@@ -58,7 +52,6 @@ TEST(HttpLogicNormal, Put)
 		CHECK(uut.getAuthStatus() == MockedHttpLogic::AuthStatus::None);
 		CHECK(uut.getStatus() == HTTP_STATUS_OK);
 		CHECK(MockedHttpLogic::content == "BodyTest");
-		mock().checkExpectations();
 	}
 }
 
@@ -68,13 +61,11 @@ TEST(HttpLogicNormal, Get)
 			"GET /foo/bar?opt=val#frag HTTP/1.1\r\n\r\n";
 
 	for(unsigned int i=0; i<strlen(testRequest); i++) {
-		mock().clear();
-
-		mock("ResourceLocator").expectOneCall("reset");
-		mock("ResourceLocator").expectOneCall("enter").withStringParameter("str", "foo");
-		mock("ResourceLocator").expectOneCall("enter").withStringParameter("str", "bar");
-		mock("ContentProvider").expectOneCall("sendFrom").withStringParameter("path", "/foo/bar");
-		mock("ContentProvider").expectOneCall("contentRead");
+		MOCK(ResourceLocator)::EXPECT(reset);
+		MOCK(ResourceLocator)::EXPECT(enter).withStringParam("foo");
+		MOCK(ResourceLocator)::EXPECT(enter).withStringParam("bar");
+		MOCK(ContentProvider)::EXPECT(sendFrom).withStringParam("/foo/bar");
+		MOCK(ContentProvider)::EXPECT(contentRead);
 
 		uut.reset();
 		uut.parse(testRequest, i);
@@ -84,7 +75,6 @@ TEST(HttpLogicNormal, Get)
 		CHECK(MockedHttpLogic::workerCalled);
 		CHECK(uut.getAuthStatus() == MockedHttpLogic::AuthStatus::None);
 		CHECK(uut.getStatus() == HTTP_STATUS_OK);
-		mock().checkExpectations();
 	}
 }
 
@@ -103,11 +93,9 @@ TEST(HttpLogicNormal, PutAuth)
 			"BodyTest\r\n";
 
 	for(unsigned int i=0; i<strlen(testRequest) - 3; i++) {
-		mock().clear();
-
-		mock("ResourceLocator").expectOneCall("reset");
-		mock("ContentProvider").expectOneCall("receiveInto").withStringParameter("path", "/index.html");
-		mock("ContentProvider").expectOneCall("contentWritten");
+		MOCK(ResourceLocator)::EXPECT(reset);
+		MOCK(ContentProvider)::EXPECT(receiveInto).withStringParam("/index.html");
+		MOCK(ContentProvider)::EXPECT(contentWritten);
 
 		uut.reset();
 		uut.parse(testRequest, i);
@@ -121,7 +109,6 @@ TEST(HttpLogicNormal, PutAuth)
 
 		CHECK(MockedHttpLogic::workerCalled);
 		CHECK(MockedHttpLogic::content == "BodyTest");
-		mock().checkExpectations();
 	}
 }
 

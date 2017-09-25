@@ -11,5 +11,5 @@
 	path = test/ultimate-makefile
 	url = http://github.com/tamasseller/ultimate-makefile
 [submodule "test/toolchains"]
-	path = test/toolchains
+	path = toolchains
 	url = http://github.com/tamasseller/toolchains

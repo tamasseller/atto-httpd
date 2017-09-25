@@ -16,8 +16,9 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *
  *******************************************************************************/
-#include "CppUTest/TestHarness.h"
-#include "CppUTestExt/MockSupport.h"
+
+#include "1test/Test.h"
+#include "1test/Mock.h"
 
 #include "HttpRequestParser.h"
 
@@ -28,75 +29,71 @@ class MockedParser: public HttpRequestParser<MockedParser> {
 	friend HttpRequestParser<MockedParser>;
 
 	inline void beforeRequest() {
-		mock("MockedParser").actualCall("beforeRequest");
+		MOCK(MockedParser)::CALL(beforeRequest);
 	}
 
 	inline void beforeUrl() {
-		mock("MockedParser").actualCall("beforeUrl");
+		MOCK(MockedParser)::CALL(beforeUrl);
 	}
 
 	inline int onUrl(const char *at, size_t length) {
-		mock("MockedParser")
-				.actualCall("onUrl")
-				.withStringParameter("data", std::string(at, length).c_str());
+		MOCK(MockedParser)::CALL(onUrl)
+				.withStringParam(std::string(at, length).c_str());
 
 		return 0;
 	}
 
 	inline void afterUrl() {
-		mock("MockedParser").actualCall("afterUrl");
+		MOCK(MockedParser)::CALL(afterUrl);
 	}
 
 	inline void beforeHeaderName() {
-		mock("MockedParser").actualCall("beforeHeaderName");
+		MOCK(MockedParser)::CALL(beforeHeaderName);
 	}
 
 	inline int onHeaderName(const char *at, size_t length) {
-		mock("MockedParser")
-				.actualCall("onHeaderName")
-				.withStringParameter("data", std::string(at, length).c_str());
+		MOCK(MockedParser)::CALL(onHeaderName)
+				.withStringParam(std::string(at, length).c_str());
 
 		return 0;
 	}
 
 	inline void afterHeaderName() {
-		mock("MockedParser").actualCall("afterHeaderName");
+		MOCK(MockedParser)::CALL(afterHeaderName);
 	}
 
 	inline void beforeHeaderValue() {
-		mock("MockedParser").actualCall("beforeHeaderValue");
+		MOCK(MockedParser)::CALL(beforeHeaderValue);
 	}
 
 	inline int onHeaderValue(const char *at, size_t length) {
-		mock("MockedParser")
-				.actualCall("onHeaderValue")
-				.withStringParameter("data", std::string(at, length).c_str());
+		MOCK(MockedParser)::CALL(onHeaderValue)
+				.withStringParam(std::string(at, length).c_str());
 
 		return 0;
 	}
 
 	inline void afterHeaderValue() {
-		mock("MockedParser").actualCall("afterHeaderValue");
+		MOCK(MockedParser)::CALL(afterHeaderValue);
 	}
 
 	inline void beforeBody() {
-		mock("MockedParser").actualCall("beforeBody");
+		MOCK(MockedParser)::CALL(beforeBody);
 	}
 
 	inline int onBody(const char *at, size_t length) {
-		mock("MockedParser")
-				.actualCall("onBody")
-				.withStringParameter("data", std::string(at, length).c_str());
+		MOCK(MockedParser)::CALL(onBody)
+				.withStringParam(std::string(at, length).c_str());
 
 		return 0;
 	}
 
 	inline void afterBody() {
-		mock("MockedParser").actualCall("afterBody");
+		MOCK(MockedParser)::CALL(afterBody);
 	}
 
 	inline void afterRequest() {
-		mock("MockedParser").actualCall("afterRequest");
+		MOCK(MockedParser)::CALL(afterRequest);
 	}
 };
 
@@ -106,21 +103,16 @@ TEST_GROUP(HttpRequestParser) {
 	TEST_SETUP() {
 		parser.reset();
 	}
-
-	TEST_TEARDOWN() {
-		mock().checkExpectations();
-		mock().clear();
-	}
 };
 
 TEST(HttpRequestParser, Simple) {
 	static constexpr const char* request = "GET / HTTP/1.1\r\n\r\n";
 
-	mock("MockedParser").expectOneCall("beforeRequest");
-	mock("MockedParser").expectOneCall("beforeUrl");
-	mock("MockedParser").expectOneCall("onUrl").withStringParameter("data", "/");
-	mock("MockedParser").expectOneCall("afterUrl");
-	mock("MockedParser").expectOneCall("afterRequest");
+	MOCK(MockedParser)::EXPECT(beforeRequest);
+	MOCK(MockedParser)::EXPECT(beforeUrl);
+	MOCK(MockedParser)::EXPECT(onUrl).withStringParam("/");
+	MOCK(MockedParser)::EXPECT(afterUrl);
+	MOCK(MockedParser)::EXPECT(afterRequest);
 
 	CHECK(parser.parse(request, std::strlen(request)) == std::strlen(request));
 	parser.done();
@@ -129,11 +121,11 @@ TEST(HttpRequestParser, Simple) {
 TEST(HttpRequestParser, WithUrl) {
 	static constexpr const char* request = "GET /u/r/l HTTP/1.1\r\n\r\n";
 
-	mock("MockedParser").expectOneCall("beforeRequest");
-	mock("MockedParser").expectOneCall("beforeUrl");
-	mock("MockedParser").expectOneCall("onUrl").withStringParameter("data", "/u/r/l");
-	mock("MockedParser").expectOneCall("afterUrl");
-	mock("MockedParser").expectOneCall("afterRequest");
+	MOCK(MockedParser)::EXPECT(beforeRequest);
+	MOCK(MockedParser)::EXPECT(beforeUrl);
+	MOCK(MockedParser)::EXPECT(onUrl).withStringParam("/u/r/l");
+	MOCK(MockedParser)::EXPECT(afterUrl);
+	MOCK(MockedParser)::EXPECT(afterRequest);
 
 	CHECK(parser.parse(request, std::strlen(request)) == std::strlen(request));
 	parser.done();
@@ -144,20 +136,20 @@ TEST(HttpRequestParser, OneHeader) {
 			"GET / HTTP/1.1\r\n"
 			"Host: asd.qwe\r\n\r\n";
 
-	mock("MockedParser").expectOneCall("beforeRequest");
+	MOCK(MockedParser)::EXPECT(beforeRequest);
 
-	mock("MockedParser").expectOneCall("beforeUrl");
-	mock("MockedParser").expectOneCall("onUrl").withStringParameter("data", "/");
-	mock("MockedParser").expectOneCall("afterUrl");
+	MOCK(MockedParser)::EXPECT(beforeUrl);
+	MOCK(MockedParser)::EXPECT(onUrl).withStringParam("/");
+	MOCK(MockedParser)::EXPECT(afterUrl);
 
-	mock("MockedParser").expectOneCall("beforeHeaderName");
-	mock("MockedParser").expectOneCall("onHeaderName").withStringParameter("data", "Host");
-	mock("MockedParser").expectOneCall("afterHeaderName");
-	mock("MockedParser").expectOneCall("beforeHeaderValue");
-	mock("MockedParser").expectOneCall("onHeaderValue").withStringParameter("data", "asd.qwe");
-	mock("MockedParser").expectOneCall("afterHeaderValue");
+	MOCK(MockedParser)::EXPECT(beforeHeaderName);
+	MOCK(MockedParser)::EXPECT(onHeaderName).withStringParam("Host");
+	MOCK(MockedParser)::EXPECT(afterHeaderName);
+	MOCK(MockedParser)::EXPECT(beforeHeaderValue);
+	MOCK(MockedParser)::EXPECT(onHeaderValue).withStringParam("asd.qwe");
+	MOCK(MockedParser)::EXPECT(afterHeaderValue);
 
-	mock("MockedParser").expectOneCall("afterRequest");
+	MOCK(MockedParser)::EXPECT(afterRequest);
 
 	CHECK(parser.parse(request, std::strlen(request)) == std::strlen(request));
 	parser.done();
@@ -169,27 +161,27 @@ TEST(HttpRequestParser, TwoHeaders) {
 			"Host: asd.qwe\r\n"
 			"X-My:ass\r\n\r\n";
 
-	mock("MockedParser").expectOneCall("beforeRequest");
+	MOCK(MockedParser)::EXPECT(beforeRequest);
 
-	mock("MockedParser").expectOneCall("beforeUrl");
-	mock("MockedParser").expectOneCall("onUrl").withStringParameter("data", "/");
-	mock("MockedParser").expectOneCall("afterUrl");
+	MOCK(MockedParser)::EXPECT(beforeUrl);
+	MOCK(MockedParser)::EXPECT(onUrl).withStringParam("/");
+	MOCK(MockedParser)::EXPECT(afterUrl);
 
-	mock("MockedParser").expectOneCall("beforeHeaderName");
-	mock("MockedParser").expectOneCall("onHeaderName").withStringParameter("data", "Host");
-	mock("MockedParser").expectOneCall("afterHeaderName");
-	mock("MockedParser").expectOneCall("beforeHeaderValue");
-	mock("MockedParser").expectOneCall("onHeaderValue").withStringParameter("data", "asd.qwe");
-	mock("MockedParser").expectOneCall("afterHeaderValue");
+	MOCK(MockedParser)::EXPECT(beforeHeaderName);
+	MOCK(MockedParser)::EXPECT(onHeaderName).withStringParam("Host");
+	MOCK(MockedParser)::EXPECT(afterHeaderName);
+	MOCK(MockedParser)::EXPECT(beforeHeaderValue);
+	MOCK(MockedParser)::EXPECT(onHeaderValue).withStringParam("asd.qwe");
+	MOCK(MockedParser)::EXPECT(afterHeaderValue);
 
-	mock("MockedParser").expectOneCall("beforeHeaderName");
-	mock("MockedParser").expectOneCall("onHeaderName").withStringParameter("data", "X-My");
-	mock("MockedParser").expectOneCall("afterHeaderName");
-	mock("MockedParser").expectOneCall("beforeHeaderValue");
-	mock("MockedParser").expectOneCall("onHeaderValue").withStringParameter("data", "ass");
-	mock("MockedParser").expectOneCall("afterHeaderValue");
+	MOCK(MockedParser)::EXPECT(beforeHeaderName);
+	MOCK(MockedParser)::EXPECT(onHeaderName).withStringParam("X-My");
+	MOCK(MockedParser)::EXPECT(afterHeaderName);
+	MOCK(MockedParser)::EXPECT(beforeHeaderValue);
+	MOCK(MockedParser)::EXPECT(onHeaderValue).withStringParam("ass");
+	MOCK(MockedParser)::EXPECT(afterHeaderValue);
 
-	mock("MockedParser").expectOneCall("afterRequest");
+	MOCK(MockedParser)::EXPECT(afterRequest);
 
 	CHECK(parser.parse(request, std::strlen(request)) == std::strlen(request));
 	parser.done();
@@ -202,31 +194,31 @@ TEST(HttpRequestParser, TwoHeaderWithBody) {
 			"Content-Length:8\r\n\r\n"
 			"BodyTest\r\n";
 
-	mock("MockedParser").expectOneCall("beforeRequest");
+	MOCK(MockedParser)::EXPECT(beforeRequest);
 
-	mock("MockedParser").expectOneCall("beforeUrl");
-	mock("MockedParser").expectOneCall("onUrl").withStringParameter("data", "/");
-	mock("MockedParser").expectOneCall("afterUrl");
+	MOCK(MockedParser)::EXPECT(beforeUrl);
+	MOCK(MockedParser)::EXPECT(onUrl).withStringParam("/");
+	MOCK(MockedParser)::EXPECT(afterUrl);
 
-	mock("MockedParser").expectOneCall("beforeHeaderName");
-	mock("MockedParser").expectOneCall("onHeaderName").withStringParameter("data", "Host");
-	mock("MockedParser").expectOneCall("afterHeaderName");
-	mock("MockedParser").expectOneCall("beforeHeaderValue");
-	mock("MockedParser").expectOneCall("onHeaderValue").withStringParameter("data", "asd.qwe");
-	mock("MockedParser").expectOneCall("afterHeaderValue");
+	MOCK(MockedParser)::EXPECT(beforeHeaderName);
+	MOCK(MockedParser)::EXPECT(onHeaderName).withStringParam("Host");
+	MOCK(MockedParser)::EXPECT(afterHeaderName);
+	MOCK(MockedParser)::EXPECT(beforeHeaderValue);
+	MOCK(MockedParser)::EXPECT(onHeaderValue).withStringParam("asd.qwe");
+	MOCK(MockedParser)::EXPECT(afterHeaderValue);
 
-	mock("MockedParser").expectOneCall("beforeHeaderName");
-	mock("MockedParser").expectOneCall("onHeaderName").withStringParameter("data", "Content-Length");
-	mock("MockedParser").expectOneCall("afterHeaderName");
-	mock("MockedParser").expectOneCall("beforeHeaderValue");
-	mock("MockedParser").expectOneCall("onHeaderValue").withStringParameter("data", "8");
-	mock("MockedParser").expectOneCall("afterHeaderValue");
+	MOCK(MockedParser)::EXPECT(beforeHeaderName);
+	MOCK(MockedParser)::EXPECT(onHeaderName).withStringParam("Content-Length");
+	MOCK(MockedParser)::EXPECT(afterHeaderName);
+	MOCK(MockedParser)::EXPECT(beforeHeaderValue);
+	MOCK(MockedParser)::EXPECT(onHeaderValue).withStringParam("8");
+	MOCK(MockedParser)::EXPECT(afterHeaderValue);
 
-	mock("MockedParser").expectOneCall("beforeBody");
-	mock("MockedParser").expectOneCall("onBody").withStringParameter("data", "BodyTest");
-	mock("MockedParser").expectOneCall("afterBody");
+	MOCK(MockedParser)::EXPECT(beforeBody);
+	MOCK(MockedParser)::EXPECT(onBody).withStringParam("BodyTest");
+	MOCK(MockedParser)::EXPECT(afterBody);
 
-	mock("MockedParser").expectOneCall("afterRequest");
+	MOCK(MockedParser)::EXPECT(afterRequest);
 
 	CHECK(parser.parse(request, std::strlen(request)) == std::strlen(request));
 	parser.done();
@@ -236,25 +228,22 @@ class MockedParserPartial: public HttpRequestParser<MockedParserPartial> {
 	friend HttpRequestParser<MockedParserPartial>;
 
 	inline int onUrl(const char *at, size_t length) {
-		mock("MockedParser")
-				.actualCall("onUrl")
-				.withStringParameter("data", std::string(at, length).c_str());
+		MOCK(MockedParser)::CALL(onUrl)
+				.withStringParam(std::string(at, length).c_str());
 
 		return 0;
 	}
 
 	inline int onHeaderName(const char *at, size_t length) {
-		mock("MockedParser")
-				.actualCall("onHeaderName")
-				.withStringParameter("data", std::string(at, length).c_str());
+		MOCK(MockedParser)::CALL(onHeaderName)
+				.withStringParam(std::string(at, length).c_str());
 
 		return 0;
 	}
 
 	inline int onBody(const char *at, size_t length) {
-		mock("MockedParser")
-				.actualCall("onBody")
-				.withStringParameter("data", std::string(at, length).c_str());
+		MOCK(MockedParser)::CALL(onBody)
+				.withStringParam(std::string(at, length).c_str());
 
 		return 0;
 	}
@@ -267,11 +256,6 @@ TEST_GROUP(HttpRequestParserPartial) {
 	TEST_SETUP() {
 		parser.reset();
 	}
-
-	TEST_TEARDOWN() {
-		mock().checkExpectations();
-		mock().clear();
-	}
 };
 
 TEST(HttpRequestParserPartial, TwoHeaderWithBody) {
@@ -281,10 +265,10 @@ TEST(HttpRequestParserPartial, TwoHeaderWithBody) {
 			"Content-Length:8\r\n\r\n"
 			"BodyTest\r\n";
 
-	mock("MockedParser").expectOneCall("onUrl").withStringParameter("data", "/");
-	mock("MockedParser").expectOneCall("onHeaderName").withStringParameter("data", "Host");
-	mock("MockedParser").expectOneCall("onHeaderName").withStringParameter("data", "Content-Length");
-	mock("MockedParser").expectOneCall("onBody").withStringParameter("data", "BodyTest");
+	MOCK(MockedParser)::EXPECT(onUrl).withStringParam("/");
+	MOCK(MockedParser)::EXPECT(onHeaderName).withStringParam("Host");
+	MOCK(MockedParser)::EXPECT(onHeaderName).withStringParam("Content-Length");
+	MOCK(MockedParser)::EXPECT(onBody).withStringParam("BodyTest");
 
 	CHECK(parser.parse(request, std::strlen(request)) == std::strlen(request));
 	parser.done();
@@ -316,7 +300,7 @@ TEST(HttpRequestParserPartial, BadUri) {
 			"GET /invalid uri HTTP/1.1\r\n"
 			"BodyTest\r\n";
 
-	mock("MockedParser").expectOneCall("onUrl").withStringParameter("data", "/invalid");
+	MOCK(MockedParser)::EXPECT(onUrl).withStringParam("/invalid");
 
 	parser.parse(request, std::strlen(request));
 	parser.done();

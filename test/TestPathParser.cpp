@@ -16,8 +16,9 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *
  *******************************************************************************/
-#include "CppUTest/TestHarness.h"
-#include "CppUTestExt/MockSupport.h"
+
+#include "1test/Test.h"
+#include "1test/Mock.h"
 
 #include "PathParser.h"
 

@@ -16,19 +16,15 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *
  *******************************************************************************/
-#include "CppUTest/TestHarness.h"
-#include "CppUTestExt/MockSupport.h"
+
+#include "1test/Test.h"
+#include "1test/Mock.h"
 
 #include "HttpLogic.h"
 #include "MockedProviders.h"
 
 TEST_GROUP(HttpLogicDav) {
 	MockedHttpLogic uut;
-
-	TEST_TEARDOWN() {
-		mock().checkExpectations();
-		mock().clear();
-	}
 
 	TEST_SETUP() {
 		MockedHttpLogic::errAt = MockedHttpLogic::ErrAt::None;
@@ -43,15 +39,15 @@ TEST(HttpLogicDav, Copy)
 			"Destination: http://127.0.0.1/foo/baz\r\n"
 			"Overwrite: T\r\n\r\n";
 
-	mock("ResourceLocator").expectOneCall("reset");
-	mock("ResourceLocator").expectOneCall("enter").withStringParameter("str", "foo");
-	mock("ResourceLocator").expectOneCall("enter").withStringParameter("str", "bar");
-	mock("ResourceLocator").expectOneCall("reset");
-	mock("ResourceLocator").expectOneCall("enter").withStringParameter("str", "foo");
-	mock("ContentProvider").expectOneCall("copy")
-			.withStringParameter("src", "/foo/bar")
-			.withStringParameter("dst", "/foo/baz")
-			.withBoolParameter("overwrite", true);
+	MOCK(ResourceLocator)::EXPECT(reset);
+	MOCK(ResourceLocator)::EXPECT(enter).withStringParam("foo");
+	MOCK(ResourceLocator)::EXPECT(enter).withStringParam("bar");
+	MOCK(ResourceLocator)::EXPECT(reset);
+	MOCK(ResourceLocator)::EXPECT(enter).withStringParam("foo");
+	MOCK(ContentProvider)::EXPECT(copy)
+			.withStringParam("/foo/bar")
+			.withStringParam("/foo/baz")
+			.withParam(true);
 
 	uut.reset();
 	uut.parse(testRequest, strlen(testRequest));
@@ -66,15 +62,15 @@ TEST(HttpLogicDav, Move)
 			"MOVE /foo/bar HTTP/1.1\r\n"
 			"Destination: http://127.0.0.1/foo/baz\r\n\r\n";
 
-	mock("ResourceLocator").expectOneCall("reset");
-	mock("ResourceLocator").expectOneCall("enter").withStringParameter("str", "foo");
-	mock("ResourceLocator").expectOneCall("enter").withStringParameter("str", "bar");
-	mock("ResourceLocator").expectOneCall("reset");
-	mock("ResourceLocator").expectOneCall("enter").withStringParameter("str", "foo");
-	mock("ContentProvider").expectOneCall("move")
-			.withStringParameter("src", "/foo/bar")
-			.withStringParameter("dst", "/foo/baz")
-			.withBoolParameter("overwrite", false);
+	MOCK(ResourceLocator)::EXPECT(reset);
+	MOCK(ResourceLocator)::EXPECT(enter).withStringParam("foo");
+	MOCK(ResourceLocator)::EXPECT(enter).withStringParam("bar");
+	MOCK(ResourceLocator)::EXPECT(reset);
+	MOCK(ResourceLocator)::EXPECT(enter).withStringParam("foo");
+	MOCK(ContentProvider)::EXPECT(move)
+			.withStringParam("/foo/bar")
+			.withStringParam("/foo/baz")
+			.withParam(false);
 
 	uut.reset();
 	uut.parse(testRequest, strlen(testRequest));
@@ -88,10 +84,10 @@ TEST(HttpLogicDav, MkCol)
 	static constexpr const char* testRequest =
 			"MKCOL /foo/bar HTTP/1.1\r\n\r\n";
 
-	mock("ResourceLocator").expectOneCall("reset");
-	mock("ResourceLocator").expectOneCall("enter").withStringParameter("str", "foo");
-	mock("ContentProvider").expectOneCall("createDirectory")
-			.withStringParameter("path", "/foo/bar");
+	MOCK(ResourceLocator)::EXPECT(reset);
+	MOCK(ResourceLocator)::EXPECT(enter).withStringParam("foo");
+	MOCK(ContentProvider)::EXPECT(createDirectory)
+			.withStringParam("/foo/bar");
 
 	uut.reset();
 	uut.parse(testRequest, strlen(testRequest));
@@ -105,10 +101,10 @@ TEST(HttpLogicDav, Delete)
 	static constexpr const char* testRequest =
 			"DELETE /foo/bar HTTP/1.1\r\n\r\n";
 
-	mock("ResourceLocator").expectOneCall("reset");
-	mock("ResourceLocator").expectOneCall("enter").withStringParameter("str", "foo");
-	mock("ContentProvider").expectOneCall("remove")
-			.withStringParameter("path", "/foo/bar");
+	MOCK(ResourceLocator)::EXPECT(reset);
+	MOCK(ResourceLocator)::EXPECT(enter).withStringParam("foo");
+	MOCK(ContentProvider)::EXPECT(remove)
+			.withStringParam("/foo/bar");
 
 	uut.reset();
 	uut.parse(testRequest, strlen(testRequest));
@@ -142,10 +138,10 @@ TEST(HttpLogicDav, PropfindFile)
 		"<checked-out xmlns=\"DAV:\"/>\n"
 		"</prop></propfind>\n";
 
-	mock("ResourceLocator").expectOneCall("reset");
-	mock("ContentProvider").expectOneCall("listFile")
-			.withStringParameter("path", "");
-	mock("ContentProvider").expectOneCall("listingDone");
+	MOCK(ResourceLocator)::EXPECT(reset);
+	MOCK(ContentProvider)::EXPECT(listFile)
+			.withStringParam("");
+	MOCK(ContentProvider)::EXPECT(listingDone);
 
 	uut.reset();
 	uut.parse(testRequest, strlen(testRequest) - 1);
@@ -163,10 +159,10 @@ TEST(HttpLogicDav, PropfindDir)
 		"PROPFIND / HTTP/1.1\r\n"
 		"Depth: 1\r\n\r\n";
 
-	mock("ResourceLocator").expectOneCall("reset");
-	mock("ContentProvider").expectOneCall("listDirectory")
-			.withStringParameter("path", "");
-	mock("ContentProvider").expectOneCall("listingDone");
+	MOCK(ResourceLocator)::EXPECT(reset);
+	MOCK(ContentProvider)::EXPECT(listDirectory)
+			.withStringParam("");
+	MOCK(ContentProvider)::EXPECT(listingDone);
 
 	uut.reset();
 	uut.parse(testRequest, strlen(testRequest));
