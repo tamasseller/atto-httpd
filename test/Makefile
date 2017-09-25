@@ -78,4 +78,7 @@ LD=$(CXX)
 
 CPPUTEST_FLAGS += -c
 
-include ../../../ultimate-makefile/Makefile.ultimate
+include ultimate-makefile/Makefile.ultimate
+
+enter:
+	make -C toolchains enter-the-matrix

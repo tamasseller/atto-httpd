@@ -7,3 +7,9 @@
 [submodule "pet"]
 	path = pet
 	url = https://github.com/tamasseller/pet
+[submodule "test/ultimate-makefile"]
+	path = test/ultimate-makefile
+	url = http://github.com/tamasseller/ultimate-makefile
+[submodule "test/toolchains"]
+	path = test/toolchains
+	url = http://github.com/tamasseller/toolchains
