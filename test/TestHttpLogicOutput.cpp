@@ -56,6 +56,8 @@ TEST_GROUP(HttpLogicOutput) {
 			response += std::string(str, length);
 		}
 
+		void flush() {}
+
 		DavAccess accessible(ResourceLocator* rl, bool authenticated)
 		{
 			return DavAccess::Dav;
@@ -79,8 +81,6 @@ TEST_GROUP(HttpLogicOutput) {
 		HttpStatus move(ResourceLocator* src, ResourceLocator* dstDir, const char* dstName, uint32_t length, bool overwrite) {
 			return HTTP_STATUS_CREATED;
 		}
-
-		void flush() {}
 
 		// Upload
 

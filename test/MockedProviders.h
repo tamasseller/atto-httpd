@@ -69,6 +69,7 @@ namespace {
 		static ErrAt errAt;
 
 		void send(const char* str, unsigned int length) {}
+		void flush() {}
 
 		void resetLocator(ResourceLocator* rl) {
 			MOCK(ResourceLocator)::CALL(reset);
@@ -79,8 +80,6 @@ namespace {
 		{
 			return DavAccess::Dav;
 		}
-
-		void flush() {}
 
 		HttpStatus enter(ResourceLocator* rl, const char* str, unsigned int length) {
 			MOCK(ResourceLocator)::CALL(enter).withStringParam(std::string(str, length).c_str());

@@ -48,9 +48,12 @@ private:
 	typedef void (*HeaderFieldParser)(HttpLogic*, const char*, uint32_t);
 	typedef Keywords<HeaderFieldParser, 4> HeaderKeywords;
 	typedef DavRequestParser<Resources::davStackSize> DavReqParser;
+	typedef typename Resources::SourceLocator SourceResource;
+	typedef typename Resources::DestinationLocator DestinationResource;
+
 	static const HeaderKeywords headerKeywords;
 
-	const char* crLf = "\r\n";
+	static constexpr const char* crLf = "\r\n";
 	static constexpr const char* keepAliveHeader = "Connection: Keep-Alive\r\n";
 	static constexpr const char* closeHeader = "Connection: Close\r\n";
 	static constexpr const char* chunkedHeader = "Transfer-Encoding: chunked\r\n";
@@ -93,8 +96,8 @@ private:
 	Depth depth;
 
 	HeaderFieldParser fieldParser;
-	typename Resources::SourceLocator sourceResource;
-	typename Resources::DestinationLocator destinationResource;
+	SourceResource sourceResource;
+	DestinationResource destinationResource;
 
 	HttpStatus status;
 	TemporaryStringBuffer<32> tempString;
@@ -172,10 +175,40 @@ private:
 
 	inline void newRequest();
 	inline bool generatePropfindResponse(bool file, typename DavReqParser::Type type);
-	inline void sendHeaders();
 protected:
+	inline void beginHeaders();
 	inline void sendChunk(const char*, uint32_t);
 	inline void sendChunk(const char*);
+
+	/*
+	 * Default implementation of application hooks.
+	 */
+	template<class Resource>
+	inline DavAccess accessible(Resource* rl, bool authenticated) { return DavAccess::NoDav; }
+
+	template<class Resource>
+	inline void resetLocator(Resource* rl) {}
+
+	template<class Resource>
+	inline HttpStatus enter(Resource* rl, const char* str, unsigned int length) { return HTTP_STATUS_OK; }
+
+	inline HttpStatus remove(DestinationResource* rl, const char* dstName, uint32_t length) { return HTTP_STATUS_FORBIDDEN; }
+	inline HttpStatus createDirectory(DestinationResource* rl, const char* dstName, uint32_t length) { return HTTP_STATUS_FORBIDDEN; }
+	inline HttpStatus copy(SourceResource* src, DestinationResource* dstDir, const char* dstName, uint32_t length, bool overwrite) { return HTTP_STATUS_FORBIDDEN; }
+	inline HttpStatus move(SourceResource* src, DestinationResource* dstDir, const char* dstName, uint32_t length, bool overwrite) { return HTTP_STATUS_FORBIDDEN; }
+	inline HttpStatus arrangeReceiveInto(DestinationResource* rl, const char* dstName, uint32_t length) { return HTTP_STATUS_OK; }
+	inline HttpStatus writeContent(DestinationResource* rl, const char* buff, uint32_t length) { return HTTP_STATUS_OK; }
+	inline HttpStatus contentWritten(DestinationResource* rl) { return HTTP_STATUS_OK; }
+	inline HttpStatus arrangeSendFrom(SourceResource* rl, uint32_t &size) { return HTTP_STATUS_NOT_FOUND; }
+	inline HttpStatus readContent(SourceResource* rl) { return HTTP_STATUS_NOT_FOUND; }
+	inline HttpStatus contentRead(SourceResource* rl) { return HTTP_STATUS_NOT_FOUND; }
+	inline HttpStatus arrangeFileListing(SourceResource* rl) { return HTTP_STATUS_FORBIDDEN; }
+	inline HttpStatus arrangeDirectoryListing(SourceResource* rl) { return HTTP_STATUS_FORBIDDEN; }
+	inline HttpStatus generateDirectoryListing(SourceResource* rl, const DavProperty* prop) { return HTTP_STATUS_FORBIDDEN; }
+	inline HttpStatus generateFileListing(SourceResource* rl, const DavProperty* prop) { return HTTP_STATUS_FORBIDDEN; }
+	inline bool stepListing(SourceResource* rl) { return false; }
+	inline HttpStatus fileListingDone(SourceResource* rl) { return HTTP_STATUS_FORBIDDEN; }
+	inline HttpStatus directoryListingDone(SourceResource* rl) { return HTTP_STATUS_FORBIDDEN; }
 public:
 	inline AuthStatus getAuthStatus();
 	inline HttpStatus getStatus();
@@ -533,7 +566,7 @@ inline int HttpLogic<Provider, Resources>::onBody(const char *at, size_t length)
 }
 
 template<class Provider, class Resources>
-inline void HttpLogic<Provider, Resources>::sendHeaders() {
+inline void HttpLogic<Provider, Resources>::beginHeaders() {
 	const char *statusLine = getStatusLine(status);
 	((Provider*)this)->send(statusLine, strlen(statusLine));
 	if(!isError(status)) {
@@ -760,7 +793,7 @@ inline void HttpLogic<Provider, Resources>::afterRequest() {
 		}
 	}
 
-	sendHeaders();
+	beginHeaders();
 
 	if(!isError(status)) {
 		switch(HttpRequestParser<HttpLogic>::getMethod()) {

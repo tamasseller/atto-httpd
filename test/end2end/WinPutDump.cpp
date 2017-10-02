@@ -54,100 +54,10 @@ class HttpSession: protected HttpLogic<HttpSession, Types>
 	}
 	void flush() {}
 
-	DavAccess accessible(ResourceLocator* rl, bool authenticated)
-	{
-		return DavAccess::NoDav;
-	}
-
-	void resetLocator(ResourceLocator* rl) {}
-
-	HttpStatus enter(ResourceLocator* rl, const char* str, unsigned int length) {
-		return HTTP_STATUS_OK;
-	}
-
-	HttpStatus remove(ResourceLocator* rl, const char* dstName, uint32_t length) {
-		return HTTP_STATUS_FORBIDDEN;
-	}
-
-	HttpStatus createDirectory(ResourceLocator* rl, const char* dstName, uint32_t length)
-	{
-		return HTTP_STATUS_FORBIDDEN;
-	}
-
-	HttpStatus copy(ResourceLocator* src, ResourceLocator* dstDir, const char* dstName, uint32_t length, bool overwrite)
-	{
-		return HTTP_STATUS_FORBIDDEN;
-	}
-
-	HttpStatus move(ResourceLocator* src, ResourceLocator* dstDir, const char* dstName, uint32_t length, bool overwrite)
-	{
-		return HTTP_STATUS_FORBIDDEN;
-	}
-
-	HttpStatus arrangeReceiveInto(ResourceLocator* rl, const char* dstName, uint32_t length)
-	{
-		return HTTP_STATUS_OK;
-	}
-
 	HttpStatus writeContent(ResourceLocator* rl, const char* buff, uint32_t length)
 	{
 		std::cout << std::string(buff, length) << std::endl;
 		return HTTP_STATUS_OK;
-	}
-
-	HttpStatus contentWritten(ResourceLocator* rl)
-	{
-		return HTTP_STATUS_OK;
-	}
-
-	HttpStatus arrangeSendFrom(ResourceLocator* rl, uint32_t &size)
-	{
-		return HTTP_STATUS_NOT_FOUND;
-	}
-
-	HttpStatus readContent(ResourceLocator* rl)
-	{
-		return HTTP_STATUS_NOT_FOUND;
-	}
-
-	HttpStatus contentRead(ResourceLocator* rl)
-	{
-		return HTTP_STATUS_OK;
-	}
-
-	HttpStatus arrangeFileListing(ResourceLocator* rl)
-	{
-		return HTTP_STATUS_FORBIDDEN;
-	}
-
-	HttpStatus arrangeDirectoryListing(ResourceLocator* rl)
-	{
-		return HTTP_STATUS_FORBIDDEN;
-	}
-
-	HttpStatus generateDirectoryListing(ResourceLocator* rl, const DavProperty* prop)
-	{
-		return HTTP_STATUS_FORBIDDEN;
-	}
-
-	HttpStatus generateFileListing(ResourceLocator* rl, const DavProperty* prop)
-	{
-		return HTTP_STATUS_FORBIDDEN;
-	}
-
-	bool stepListing(ResourceLocator* rl)
-	{
-		return false;
-	}
-
-	HttpStatus fileListingDone(ResourceLocator* rl)
-	{
-		return HTTP_STATUS_FORBIDDEN;
-	}
-
-	HttpStatus directoryListingDone(ResourceLocator* rl)
-	{
-		return HTTP_STATUS_FORBIDDEN;
 	}
 
 public:
@@ -170,6 +80,12 @@ public:
 	            parse(recvbuf, iResult);
 	        else
 	        	break;
+
+	        if(isError(getStatus())) {
+	        	beginHeaders();
+	        	send("\r\n", 2);
+	        	reset();
+	        }
 	    };
 
 		done();
