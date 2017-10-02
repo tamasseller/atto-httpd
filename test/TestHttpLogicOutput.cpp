@@ -256,6 +256,24 @@ TEST(HttpLogicOutput, Get)
 	uut.process("GET /foo/bar HTTP/1.1\r\n\r\n");
 	CHECK(uut.response ==
 			"HTTP/1.1 200 OK\r\n"
+			"Connection: Keep-Alive\r\n"
+			"Content-Length: 11\r\n"
+			"\r\n"
+			"TestContent");
+}
+
+TEST(HttpLogicOutput, GetKeepAlive)
+{
+	uut.process("GET /foo/bar HTTP/1.1\r\nConnection:keep-alive\r\n\r\n"
+				"GET /foo/bar HTTP/1.1\r\nConnection: Close\r\n\r\n"
+			);
+	CHECK(uut.response ==
+			"HTTP/1.1 200 OK\r\n"
+			"Connection: Keep-Alive\r\n"
+			"Content-Length: 11\r\n"
+			"\r\n"
+			"TestContentHTTP/1.1 200 OK\r\n"
+			"Connection: Close\r\n"
 			"Content-Length: 11\r\n"
 			"\r\n"
 			"TestContent");
@@ -266,6 +284,7 @@ TEST(HttpLogicOutput, Head)
 	uut.process("HEAD /foo/bar HTTP/1.1\r\n\r\n");
 	CHECK(uut.response ==
 			"HTTP/1.1 200 OK\r\n"
+			"Connection: Keep-Alive\r\n"
 			"Content-Length: 11\r\n"
 			"\r\n");
 }
@@ -274,11 +293,13 @@ TEST(HttpLogicOutput, Put)
 {
 	uut.process("PUT /foo/bar HTTP/1.1\r\n"
 			"Content-Length: 7\r\n"
+			"Connection: Keep-Alive\r\n"
 			"\r\n"
 			"Content");
 
 	CHECK(uut.response ==
 			"HTTP/1.1 201 Created\r\n"
+			"Connection: Keep-Alive\r\n"
 			"Content-Length: 0\r\n"
 			"\r\n");
 }
@@ -289,6 +310,7 @@ TEST(HttpLogicOutput, Delete)
 
 	CHECK(uut.response ==
 			"HTTP/1.1 204 No Content\r\n"
+			"Connection: Keep-Alive\r\n"
 			"Content-Length: 0\r\n"
 			"\r\n");
 }
@@ -299,6 +321,7 @@ TEST(HttpLogicOutput, Mkdir)
 
 	CHECK(uut.response ==
 			"HTTP/1.1 201 Created\r\n"
+			"Connection: Keep-Alive\r\n"
 			"Content-Length: 0\r\n"
 			"\r\n");
 }
@@ -310,6 +333,7 @@ TEST(HttpLogicOutput, Copy)
 
 	CHECK(uut.response ==
 			"HTTP/1.1 201 Created\r\n"
+			"Connection: Keep-Alive\r\n"
 			"Content-Length: 0\r\n"
 			"\r\n");
 }
@@ -321,6 +345,7 @@ TEST(HttpLogicOutput, Move)
 
 	CHECK(uut.response ==
 			"HTTP/1.1 201 Created\r\n"
+			"Connection: Keep-Alive\r\n"
 			"Content-Length: 0\r\n"
 			"\r\n");
 }
@@ -332,6 +357,7 @@ TEST(HttpLogicOutput, Options)
 
 	CHECK(uut.response ==
 			"HTTP/1.1 200 OK\r\n"
+			"Connection: Keep-Alive\r\n"
 			"Allow: OPTIONS,GET,PUT,HEAD,DELETE,PROPFIND,COPY,MOVE\r\n"
 			"Dav: 1\r\n"
 			"Content-Length: 0\r\n"
@@ -346,6 +372,7 @@ IGNORE_TEST(HttpLogicOutput, PropfindAllprops)
 
 	expectChunked(
 			"HTTP/1.1 207 Multi-Status\r\n"
+			"Connection: Keep-Alive\r\n"
 			"Transfer-Encoding: chunked\r\n"
 			"\r\n"
 			"<?xml version=\"1.0\" encoding=\"UTF-8\"?>"
@@ -398,6 +425,7 @@ IGNORE_TEST(HttpLogicOutput, PropfindProp)
 
 	expectChunked(
 			"HTTP/1.1 207 Multi-Status\r\n"
+			"Connection: Keep-Alive\r\n"
 			"Transfer-Encoding: chunked\r\n"
 			"\r\n"
 			"<?xml version=\"1.0\" encoding=\"UTF-8\"?>"
@@ -461,6 +489,7 @@ IGNORE_TEST(HttpLogicOutput, PropfindPropnames)
 
 	expectChunked(
 			"HTTP/1.1 207 Multi-Status\r\n"
+			"Connection: Keep-Alive\r\n"
 			"Transfer-Encoding: chunked\r\n"
 			"\r\n"
 			"<?xml version=\"1.0\" encoding=\"UTF-8\"?>"

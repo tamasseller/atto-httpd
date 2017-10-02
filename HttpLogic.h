@@ -51,6 +51,8 @@ private:
 	static const HeaderKeywords headerKeywords;
 
 	const char* crLf = "\r\n";
+	static constexpr const char* keepAliveHeader = "Connection: Keep-Alive\r\n";
+	static constexpr const char* closeHeader = "Connection: Close\r\n";
 	static constexpr const char* chunkedHeader = "Transfer-Encoding: chunked\r\n";
 	static constexpr const char* emptyBodyHeader = "Content-Length: 0\r\n";
 	static constexpr const char* allowStrDav = "Allow: OPTIONS,GET,PUT,HEAD,DELETE,PROPFIND,COPY,MOVE\r\n";
@@ -170,6 +172,7 @@ private:
 
 	inline void newRequest();
 	inline bool generatePropfindResponse(bool file, typename DavReqParser::Type type);
+	inline void sendHeaders();
 protected:
 	inline void sendChunk(const char*, uint32_t);
 	inline void sendChunk(const char*);
@@ -527,6 +530,18 @@ inline int HttpLogic<Provider, Resources>::onBody(const char *at, size_t length)
 }
 
 template<class Provider, class Resources>
+inline void HttpLogic<Provider, Resources>::sendHeaders() {
+	const char *statusLine = getStatusLine(status);
+	((Provider*)this)->send(statusLine, strlen(statusLine));
+	if(!isError(status)) {
+		if(this->shouldKeepAlive())
+			((Provider*)this)->send(keepAliveHeader, strlen(keepAliveHeader));
+		else
+			((Provider*)this)->send(closeHeader, strlen(closeHeader));
+	}
+}
+
+template<class Provider, class Resources>
 inline bool HttpLogic<Provider, Resources>::generatePropfindResponse(bool file, typename DavReqParser::Type type) {
 	bool error = false;
 	while(!error) {
@@ -730,11 +745,7 @@ inline void HttpLogic<Provider, Resources>::afterRequest() {
 		}
 	}
 
-	/*
-	 * Generate response header
-	 */
-	const char *statusLine = getStatusLine(status);
-	((Provider*)this)->send(statusLine, strlen(statusLine));
+	sendHeaders();
 
 	if(!isError(status)) {
 		switch(HttpRequestParser<HttpLogic>::getMethod()) {

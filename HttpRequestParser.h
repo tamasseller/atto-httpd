@@ -62,6 +62,8 @@ protected:
 	inline void afterRequest() {}
 
 	inline void newRequest();
+
+	inline bool shouldKeepAlive();
 public:
 	typedef http_method Method;
 	inline Method getMethod() {return (Method)method;}
@@ -81,6 +83,11 @@ template<class Child>
 inline void HttpRequestParser<Child>::newRequest()
 {
 	hState = State::Initial;
+}
+
+template<class Child>
+inline bool HttpRequestParser<Child>::shouldKeepAlive() {
+	return http_should_keep_alive(this);
 }
 
 template<class Child>

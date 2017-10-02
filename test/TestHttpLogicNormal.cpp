@@ -55,6 +55,38 @@ TEST(HttpLogicNormal, Put)
 	}
 }
 
+TEST(HttpLogicNormal, KeepAlive)
+{
+	static constexpr const char* testRequest =
+			"PUT /foo/bar HTTP/1.1\r\n"
+			"Connection:keep-alive\r\n"
+			"Content-Length:9\r\n\r\n"
+			"FirstBody\r\n"
+			"PUT /foo/bar HTTP/1.1\r\n"
+			"Connection:keep-alive\r\n"
+			"Content-Length:10\r\n\r\n"
+			"SecondBody\r\n";
+
+	for(unsigned int i=0; i<strlen(testRequest); i++) {
+		MOCK(ResourceLocator)::EXPECT(reset);
+		MOCK(ResourceLocator)::EXPECT(enter).withStringParam("foo");
+		MOCK(ContentProvider)::EXPECT(receiveInto).withStringParam("/foo/bar");
+		MOCK(ContentProvider)::EXPECT(contentWritten);
+
+		MOCK(ResourceLocator)::EXPECT(reset);
+		MOCK(ResourceLocator)::EXPECT(enter).withStringParam("foo");
+		MOCK(ContentProvider)::EXPECT(receiveInto).withStringParam("/foo/bar");
+		MOCK(ContentProvider)::EXPECT(contentWritten);
+
+		uut.reset();
+		uut.parse(testRequest, i);
+		uut.parse(testRequest + i, strlen(testRequest) - i);
+		uut.done();
+		CHECK(uut.getStatus() == HTTP_STATUS_OK);
+		CHECK(MockedHttpLogic::content == "SecondBody");
+	}
+}
+
 TEST(HttpLogicNormal, Get)
 {
 	static constexpr const char* testRequest =
