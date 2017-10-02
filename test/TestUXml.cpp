@@ -492,8 +492,8 @@ TEST(UXml, NamespaceContext) {
 	for(uint32_t i=0; i<strlen(input); i++) {
 		expectTag("a");
 		expectTag("b");
-		expectTag("c");
 		expectClose();
+		expectTag("c");
 		expectClose();
 		expectClose();
 

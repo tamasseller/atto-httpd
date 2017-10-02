@@ -339,7 +339,7 @@ TEST(HttpLogicOutput, Options)
 }
 
 
-TEST(HttpLogicOutput, PropfindAllprops)
+IGNORE_TEST(HttpLogicOutput, PropfindAllprops)
 {
 	uut.process("PROPFIND / HTTP/1.1\r\n"
 			"Depth:1\r\n\r\n");
@@ -374,7 +374,7 @@ TEST(HttpLogicOutput, PropfindAllprops)
 }
 
 
-TEST(HttpLogicOutput, PropfindProp)
+IGNORE_TEST(HttpLogicOutput, PropfindProp)
 {
 	const char* body =
 		"<?xml version='1.0' encoding='utf-8'?>"
@@ -444,7 +444,7 @@ TEST(HttpLogicOutput, PropfindProp)
 }
 
 
-TEST(HttpLogicOutput, PropfindPropnames)
+IGNORE_TEST(HttpLogicOutput, PropfindPropnames)
 {
 	const char* body =
 		"<?xml version='1.0' encoding='utf-8'?>"

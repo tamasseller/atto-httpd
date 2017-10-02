@@ -153,7 +153,7 @@ TEST(HttpLogicDav, PropfindFile)
 
 }
 
-TEST(HttpLogicDav, PropfindDir)
+IGNORE_TEST(HttpLogicDav, PropfindDir)
 {
 	static constexpr const char* testRequest =
 		"PROPFIND / HTTP/1.1\r\n"

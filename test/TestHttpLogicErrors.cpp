@@ -219,7 +219,7 @@ TEST(HttpLogicErrors, GetWithErrors)
 }
 
 
-TEST(HttpLogicErrors, LsWithErrors)
+IGNORE_TEST(HttpLogicErrors, LsWithErrors)
 {
 	static constexpr const char* testRequest =
 		"PROPFIND / HTTP/1.1\r\n"

@@ -13,8 +13,8 @@ SOURCES += TestSplitParser.cpp
 SOURCES += TestHttpLogicDav.cpp
 SOURCES += TestHttpLogicErrors.cpp
 SOURCES += TestHttpLogicNormal.cpp
-SOURCES += TestDavRequestParser.cpp
 SOURCES += TestHttpLogicOutput.cpp
+SOURCES += TestDavRequestParser.cpp
 SOURCES += TestTemporaryStringBuffer.cpp
 SOURCES += TestConstantStringMatcher.cpp
 
