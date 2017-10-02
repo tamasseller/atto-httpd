@@ -11,9 +11,7 @@
 
 #include "ubiquitous/PrintfWriter.h"
 
+GLOBAL_TRACE_POLICY(All);
 TRACE_WRITER(PrintfWriter);
-
-
-
 
 #endif /* DEBUGCONFIG_H_ */

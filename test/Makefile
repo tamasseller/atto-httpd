@@ -25,6 +25,8 @@ SOURCES += ../pet/1test/TestRunner.cpp
 SOURCES += ../pet/1test/FailureInjector.cpp
 SOURCES += ../pet/1test/TraceOutput.cpp
 
+SOURCES += ../pet/ubiquitous/PrintfWriter.cpp
+
 INCLUDE_DIRS += .
 INCLUDE_DIRS += ..
 INCLUDE_DIRS += ../pet
@@ -39,8 +41,9 @@ COMMONFLAGS += -Wall -Wextra -Wno-unused
 CXXFLAGS += -std=c++11
 CXXFLAGS += -DCPPUTEST_USE_MEM_LEAK_DETECTION=0
 CXXFLAGS += -fno-exceptions
+CXXFLAGS += -DEXPECT_POOL_SIZE="(65535)"
 
-USESANITIZERS=1
+USESANITIZERS=0
 
 ifeq ($(USESANITIZERS), 1)
 CXXFLAGS += -fsanitize=address
