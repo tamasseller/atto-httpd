@@ -1,0 +1,33 @@
+OUTPUT = WinPutDump.exe
+
+SOURCES += WinPutDump.cpp
+
+SOURCES += ../../md5/md5.c
+SOURCES += ../../http-parser/http_parser.c
+
+INCLUDE_DIRS += ../..
+INCLUDE_DIRS += ../../pet
+
+COMMONFLAGS += -O0
+COMMONFLAGS += -g3
+COMMONFLAGS += -fdelete-null-pointer-checks
+CXXFLAGS += -std=c++11
+COMMONFLAGS += -fmax-errors=5
+COMMONFLAGS += -static
+#COMMONFLAGS += -Wall -Wextra -Wno-unused
+
+CFLAGS += $(COMMONFLAGS)
+CXXFLAGS += $(COMMONFLAGS)
+CXXFLAGS += -std=c++11
+
+LIBS += ws2_32
+
+CXX=x86_64-w64-mingw32-g++
+CC=x86_64-w64-mingw32-gcc
+CXXFLAGS += $(COMMONFLAGS)
+CFLAGS += $(COMMONFLAGS)
+LD=$(CXX) 
+
+all: $(OUTPUT)
+
+include ../../../../ultimate-makefile/Makefile.ultimate
