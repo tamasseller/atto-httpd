@@ -423,6 +423,7 @@ inline void HttpLogic<Provider, Resources>::beforeUrl() {
 
 	switch(HttpRequestParser<HttpLogic>::getMethod()) {
 		case HttpRequestParser<HttpLogic>::Method::HTTP_PUT:
+		case HttpRequestParser<HttpLogic>::Method::HTTP_POST:
 		case HttpRequestParser<HttpLogic>::Method::HTTP_MKCOL:
 		case HttpRequestParser<HttpLogic>::Method::HTTP_DELETE:
 			parseSource = false;
@@ -495,6 +496,7 @@ inline void HttpLogic<Provider, Resources>::afterHeaders()
 	if(authState != AuthStatus::Failed && !isError(status)) {
 		switch(HttpRequestParser<HttpLogic>::getMethod()) {
 			case HttpRequestParser<HttpLogic>::Method::HTTP_PUT:
+			case HttpRequestParser<HttpLogic>::Method::HTTP_POST:
 				status = ((Provider*)this)->arrangeReceiveInto(&destinationResource, tempString.data(), tempString.length());
 				break;
 			case HttpRequestParser<HttpLogic>::Method::HTTP_PROPFIND:
@@ -516,6 +518,7 @@ inline int HttpLogic<Provider, Resources>::onBody(const char *at, size_t length)
 	if(authState != AuthStatus::Failed && !isError(status)) {
 		switch(HttpRequestParser<HttpLogic>::getMethod()) {
 			case HttpRequestParser<HttpLogic>::Method::HTTP_PUT:
+			case HttpRequestParser<HttpLogic>::Method::HTTP_POST:
 				status = ((Provider*)this)->writeContent(&destinationResource, at, length);
 				break;
 			case HttpRequestParser<HttpLogic>::Method::HTTP_PROPFIND:
@@ -704,23 +707,35 @@ inline void HttpLogic<Provider, Resources>::afterRequest() {
 				break;
 
 			case HttpRequestParser<HttpLogic>::Method::HTTP_PUT:
+			case HttpRequestParser<HttpLogic>::Method::HTTP_POST:
 				status = ((Provider*)this)->contentWritten(&destinationResource);
 				break;
 
 			case HttpRequestParser<HttpLogic>::Method::HTTP_COPY:
+				if(access == DavAccess::NoDav)
+					status = HTTP_STATUS_METHOD_NOT_ALLOWED;
+				else
 				status = ((Provider*)this)->copy(&sourceResource, &destinationResource, tempString.data(), tempString.length(), overwrite);
 				break;
 
 			case HttpRequestParser<HttpLogic>::Method::HTTP_MKCOL:
+				if(access == DavAccess::NoDav)
+					status = HTTP_STATUS_METHOD_NOT_ALLOWED;
+				else
 				status = ((Provider*)this)->createDirectory(&destinationResource, tempString.data(), tempString.length());
 				break;
 
 			case HttpRequestParser<HttpLogic>::Method::HTTP_MOVE:
-				status = ((Provider*)this)->move(&sourceResource, &destinationResource, tempString.data(), tempString.length(), overwrite);
+				if(access == DavAccess::NoDav)
+					status = HTTP_STATUS_METHOD_NOT_ALLOWED;
+				else
+					status = ((Provider*)this)->move(&sourceResource, &destinationResource, tempString.data(), tempString.length(), overwrite);
 				break;
 
 			case HttpRequestParser<HttpLogic>::Method::HTTP_PROPFIND:
-				if(!davReqParser.done())
+				if(access == DavAccess::NoDav)
+					status = HTTP_STATUS_METHOD_NOT_ALLOWED;
+				else if(!davReqParser.done())
 					status = HTTP_STATUS_BAD_REQUEST;
 				else {
 					switch(depth) {
