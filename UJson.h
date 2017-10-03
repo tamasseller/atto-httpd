@@ -36,23 +36,19 @@ class UJson {
                 }
 
                 bool push() {
-                    if((uint16_t)(idx + 1) > maxDepth)
+                    if((uint16_t)(idx + 1) >= maxDepth)
                         return false;
 
                     idx++;
                     return true;
                 }
 
-                bool pop() {
-                    if(idx == -1u)
-                        return false;
-
+                void pop() {
                     idx--;
-                    return true;
                 }
 
                 bool isEmpty() {
-                    return idx == -1u;
+                	return idx == (uint16_t)-1u;
                 }
 
                 bool read() {
@@ -98,35 +94,6 @@ class UJson {
             Root, Object, Array
         };
 
-        inline bool enter(EntityType entity) {
-            if(!stack.push())
-                return false;
-
-            stack.write(entity == EntityType::Object);
-            return true;
-        }
-
-        inline EntityType currentEntity()
-        {
-            if(stack.isEmpty())
-                return EntityType::Root;
-
-            return stack.read() ? EntityType::Object : EntityType::Array;
-        }
-
-        inline bool leave()
-        {
-            return stack.pop();
-        }
-
-
-        static inline bool isWs(char c) {
-            return c == ' ' || c == '\t' || c == '\r' || c == '\n';
-        }
-
-        static inline bool isDigit(char c) {
-            return '0' <= c && c <= '9';
-        }
     protected:
         /*
          * To be imlemented by the user.
@@ -149,6 +116,84 @@ class UJson {
 
         inline void onStructureError() {}
         inline void onResourceError() {}
+
+        /*
+         * Internal helpers.
+         */
+
+        inline void flushLiteral() {
+            if(const typename LiteralKeywords::Keyword* result = literalMatcher.match(literalKeywords)) {
+                if(result->getValue() == Literal::Null) {
+                    ((Child*)this)->beforeValue(ValueType::Null);
+                    ((Child*)this)->onNull();
+                    ((Child*)this)->afterValue(ValueType::Null);
+                } else {
+                    ((Child*)this)->beforeValue(ValueType::Boolean);
+                    ((Child*)this)->onBoolean(result->getValue() == Literal::True);
+                    ((Child*)this)->afterValue(ValueType::Boolean);
+                }
+            } else {
+                ((Child*)this)->onValueError();
+            }
+        }
+
+        inline void flushNumber() {
+            ((Child*)this)->onNumber(intParser.getData());
+            ((Child*)this)->afterValue(ValueType::Number);
+        }
+
+        inline void flushObject() {
+            if(currentEntity() != EntityType::Object)
+                ((Child*)this)->onStructureError();
+
+            leave();
+        }
+
+        inline void flushArray() {
+            if(currentEntity() != EntityType::Array)
+                ((Child*)this)->onStructureError();
+
+            leave();
+        }
+
+        inline bool enter(EntityType entity) {
+            if(!stack.push())
+                return false;
+
+            stack.write(entity == EntityType::Object);
+            return true;
+        }
+
+        inline EntityType currentEntity()
+        {
+            if(stack.isEmpty())
+                return EntityType::Root;
+
+            return stack.read() ? EntityType::Object : EntityType::Array;
+        }
+
+        inline void leave()
+        {
+            state = State::AfterValue;
+
+        	if(currentEntity() == EntityType::Object)
+        		((Child*)this)->afterValue(ValueType::Object);
+        	else if(currentEntity() == EntityType::Array)
+                ((Child*)this)->afterValue(ValueType::Array);
+        	else
+        		return;
+
+            stack.pop();
+        }
+
+        static inline bool isWs(char c) {
+            return c == ' ' || c == '\t' || c == '\r' || c == '\n';
+        }
+
+        static inline bool isDigit(char c) {
+            return '0' <= c && c <= '9';
+        }
+
     public:
         inline void reset() {
             stack.reset();
@@ -183,16 +228,21 @@ class UJson {
 
                                 if(!enter(EntityType::Array))
                                     ((Child*)this)->onResourceError();
+                                else
+                                	((Child*)this)->beforeValue(ValueType::Array);
 
-                                ((Child*)this)->beforeValue(ValueType::Array);
                                 buff++;
+                            } else if(*buff == ']') {
+								flushArray();
+								buff++;
                             } else if(*buff == '{'){
                                 state = State::BeforeObjKey;
 
                                 if(!enter(EntityType::Object))
                                     ((Child*)this)->onResourceError();
+                                else
+                                	((Child*)this)->beforeValue(ValueType::Object);
 
-                                ((Child*)this)->beforeValue(ValueType::Object);
                                 buff++;
                             } else {
                                 literalMatcher.reset();
@@ -228,7 +278,8 @@ class UJson {
                                 inObjKey = false;
                             } else
                                 ((Child*)this)->afterValue(ValueType::String);
-                        }
+                        }else if(state == State::InStringQuote)
+                        	buff++;
 
                         break;
                     case State::InStringQuote:
@@ -248,7 +299,7 @@ class UJson {
                             case 'n': (self->*(inObjKey ? &Child::onKey : &Child::onString))(&newLine, 1); break;
                             case 'r': (self->*(inObjKey ? &Child::onKey : &Child::onString))(&carriageReturn, 1); break;
                             case 't': (self->*(inObjKey ? &Child::onKey : &Child::onString))(&tab, 1); break;
-                            default: ((Child*)this)->onValueError(); break;
+                            default: (self->*(inObjKey ? &Child::onKeyError : &Child::onValueError))(); break;
                         }
 
                         state = State::InString;
@@ -263,8 +314,7 @@ class UJson {
                         intParser.parseInt(start, buff - start);
 
                         if(buff != end) {
-                            ((Child*)this)->onNumber(intParser.getData());
-                            ((Child*)this)->afterValue(ValueType::Number);
+                        	flushNumber();
                             state = State::AfterValue;
                         }
 
@@ -280,19 +330,7 @@ class UJson {
                             state = State::AfterValue;
                         } else {
                             if(buff != end) {
-                                if(const typename LiteralKeywords::Keyword* result = literalMatcher.match(literalKeywords)) {
-                                    if(result->getValue() == Literal::Null) {
-                                        ((Child*)this)->beforeValue(ValueType::Null);
-                                        ((Child*)this)->onNull();
-                                        ((Child*)this)->afterValue(ValueType::Null);
-                                    } else {
-                                        ((Child*)this)->beforeValue(ValueType::Boolean);
-                                        ((Child*)this)->onBoolean(result->getValue() == Literal::True);
-                                        ((Child*)this)->afterValue(ValueType::Boolean);
-                                    }
-                                } else {
-                                    ((Child*)this)->onValueError();
-                                }
+                            	flushLiteral();
 
                                 state = State::AfterValue;
                             }
@@ -303,29 +341,18 @@ class UJson {
                         while(buff != end) {
                             if(!isWs(*buff)) {
                                 if(*buff == ','){
-                                    if(currentEntity() == EntityType::Root)
-                                        ((Child*)this)->onStructureError();
-                                    else if(currentEntity() == EntityType::Object)
-                                        state = State::BeforeObjKey;
-                                    else
-                                        state = State::BeforeValue;
+                                	if(currentEntity() == EntityType::Object)
+                                		state = State::BeforeObjKey;
+                                	else {
+                                		if(currentEntity() == EntityType::Root)
+                                			((Child*)this)->onStructureError();
 
+                                		state = State::BeforeValue;
+                                	}
                                 } else if(*buff == ']'){
-                                    if(currentEntity() != EntityType::Array)
-                                        ((Child*)this)->onStructureError();
-                                    else
-                                        ((Child*)this)->afterValue(ValueType::Array);
-
-                                    leave();
-                                    state = State::AfterValue;
+                                	flushArray();
                                 } else if(*buff == '}'){
-                                    if(currentEntity() != EntityType::Object)
-                                        ((Child*)this)->onStructureError();
-                                    else
-                                        ((Child*)this)->afterValue(ValueType::Object);
-
-                                    leave();
-                                    state = State::AfterValue;
+                                	flushObject();
                                 }
 
                                 buff++;
@@ -345,6 +372,10 @@ class UJson {
                                     ((Child*)this)->beforeKey();
                                     buff++;
                                     break;
+                                } else if(*buff == '}') {
+                                	flushObject();
+                                	buff++;
+                                	break;
                                 } else
                                     ((Child*)this)->onKeyError();
                             }
@@ -359,6 +390,10 @@ class UJson {
                                     state = State::BeforeValue;
                                     buff++;
                                     break;
+                                } else if(*buff == '}') {
+                                	flushObject();
+                                	buff++;
+                                	break;
                                 } else
                                     ((Child*)this)->onKeyError();
                             }
@@ -374,6 +409,28 @@ class UJson {
         }
 
         inline bool done() {
+            switch(state) {
+                case State::InNumber:
+                	flushNumber();
+                	break;
+                case State::InLiteral:
+                	flushLiteral();
+                	break;
+                case State::InStringQuote:
+                case State::InString:
+                	((Child*)this)->afterValue(ValueType::String);
+                	((Child*)this)->onStructureError();
+                	break;
+                case State::BeforeValue:
+                case State::BeforeObjColon:
+                case State::BeforeObjKey:
+                	((Child*)this)->onStructureError();
+                	break;
+
+                case State::AfterValue:
+                	break;
+            }
+
             return true;
         }
 };

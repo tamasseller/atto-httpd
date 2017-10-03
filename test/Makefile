@@ -10,6 +10,7 @@ SOURCES += TestHexParser.cpp
 SOURCES += TestIntParser.cpp
 SOURCES += TestUrlParser.cpp
 SOURCES += TestAuthDigest.cpp
+SOURCES += TestUJsonAbuse.cpp
 SOURCES += TestPathParser.cpp
 SOURCES += TestSplitParser.cpp
 SOURCES += TestHttpLogicDav.cpp
@@ -19,7 +20,6 @@ SOURCES += TestHttpLogicOutput.cpp
 SOURCES += TestDavRequestParser.cpp
 SOURCES += TestTemporaryStringBuffer.cpp
 SOURCES += TestConstantStringMatcher.cpp
-
 SOURCES += ../md5/md5.c
 SOURCES += ../http-parser/http_parser.c
 

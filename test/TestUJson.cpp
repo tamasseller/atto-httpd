@@ -4,126 +4,37 @@
  *      Author: tamas.seller
  */
 
-#include "1test/Test.h"
-#include "1test/Mock.h"
+#include "BaseUJsonTest.h"
 
-#include "UJson.h"
-
-#include <string>
-#include <string.h>
-#include <iostream> //XXX
-
-namespace {
-struct Uut: public UJson<Uut, 32> {
-        std::string key, value;
-        bool hasType = false;
-        ValueType lastType;
-
-        inline void beforeKey() {
-            key = "";
-        }
-        inline void onKey(const char *at, size_t length) {
-            key += std::string(at, length);
-        }
-        inline void afterKey() {
-            MOCK(ujson)::CALL(key).withStringParam(key.c_str());}
-
-        inline void beforeValue(ValueType type) {
-            CHECK(!hasType);
-
-            if(type == ValueType::String)
-                value = "";
-
-            if (type == ValueType::Array) {
-                MOCK(ujson)::CALL(enterArray);
-                hasType = false;
-            } else if (type == ValueType::Object) {
-                MOCK(ujson)::CALL(enterObject);
-                hasType = false;
-            } else {
-                lastType = type;
-                hasType = true;
-            }
-        }
-
-        inline void onNull() {MOCK(ujson)::CALL(null);}
-        inline void onBoolean(bool x) {MOCK(ujson)::CALL(boolean).withParam(x);}
-        inline void onNumber(int32_t value) {MOCK(ujson)::CALL(number).withParam(value);}
-        inline void onString(const char *at, size_t length) {
-            value += std::string(at, length);
-
-        }
-        inline void afterValue(ValueType type) {
-            if(type == ValueType::String)
-                MOCK(ujson)::CALL(string).withStringParam(value.c_str());
-            else if (type == ValueType::Array)
-                MOCK(ujson)::CALL(leaveArray);
-            else if (type == ValueType::Object)
-                MOCK(ujson)::CALL(leaveObject);
-
-            if(hasType)
-                CHECK(type == lastType);
-
-            hasType = false;
-        }
-
-        inline void onKeyError() {MOCK(ujson)::CALL(keyError);}
-        inline void onValueError() {MOCK(ujson)::CALL(valueError);}
-        inline void onStructureError() {MOCK(ujson)::CALL(structureError);}
-        inline void onResourceError() {MOCK(ujson)::CALL(resourceError);}
-    };
+TEST(UJson, RootString) {
+	process("\"foo\"", [&](){
+		expectString("foo");
+	});
 }
 
-TEST_GROUP(UJson) {
-        Uut uut;
+TEST(UJson, RootNull) {
+	process("null", [&](){
+		expectNull();
+	});
+}
 
-        void expectKey(const char* value) {
-            MOCK(ujson)::EXPECT(key).withStringParam(value);
-        }
+TEST(UJson, RootTrue) {
+	process("true", [&](){
+		expectBoolean(true);
+	});
+}
 
-        void expectString(const char* value) {
-            MOCK(ujson)::EXPECT(string).withStringParam(value);
-        }
+TEST(UJson, RootFalse) {
+	process("false", [&](){
+		expectBoolean(false);
+	});
+}
 
-        void expectBoolean(bool value) {
-            MOCK(ujson)::EXPECT(boolean).withParam(value);
-        }
-
-        void expectNumber(int32_t value) {
-            MOCK(ujson)::EXPECT(number).withParam(value);
-        }
-
-        void expectNull() {
-            MOCK(ujson)::EXPECT(null);
-        }
-
-        void expectEnterArray() {
-            MOCK(ujson)::EXPECT(enterArray);
-        }
-
-        void expectEnterObject() {
-            MOCK(ujson)::EXPECT(enterObject);
-        }
-
-        void expectLeaveArray() {
-            MOCK(ujson)::EXPECT(leaveArray);
-        }
-
-        void expectLeaveObject() {
-            MOCK(ujson)::EXPECT(leaveObject);
-        }
-
-        template<class C>
-        void process(const char* input, C &&expect) {
-            for(unsigned int i=0; i<strlen(input)-1; i++) {
-                expect();
-                uut.reset();
-                uut.parse(input, i);
-                uut.parse(input + i, strlen(input) - i);
-                uut.done();
-            }
-        }
-    };
+TEST(UJson, RootNumber) {
+	process("123", [&](){
+		expectNumber(123);
+	});
+}
 
 TEST(UJson, SimpleObject) {
     process("{\"input\": 3141, \"foo\" :\"bar\"}", [&](){
@@ -173,7 +84,7 @@ TEST(UJson, NestedArrays) {
     });
 }
 
-TEST(UJson, MatricArrays) {
+TEST(UJson, MatrixArrays) {
     process("[[1, -2, 3], [-4, 5, -6], [7, -8, 9]]", [&](){
         expectEnterArray();
         expectEnterArray();
@@ -210,47 +121,90 @@ TEST(UJson, MixedNested) {
     });
 }
 
+TEST(UJson, Quoting) {
+    process("{\"new\\r\\n\\tline\": \"\\/\\\\\\f\\b\"}", [&](){
+        expectEnterObject();
+        expectKey("new\r\n\tline");
+        expectString("/\\\f\b");
+        expectLeaveObject();
+    });
+}
+
+TEST(UJson, EmptyString) {
+    process("\"\"", [&](){
+        expectString("");
+    });
+}
+
+TEST(UJson, EmptyArray) {
+    process("[]", [&](){
+        expectEnterArray();
+        expectLeaveArray();
+    });
+}
+
+TEST(UJson, EmptyObject) {
+    process("{}", [&](){
+        expectEnterObject();
+        expectLeaveObject();
+    });
+}
+
+TEST(UJson, MultipleEmpty) {
+    process("{\"\": [{}, []]}", [&](){
+        expectEnterObject();
+        expectKey("");
+        expectEnterArray();
+        expectEnterObject();
+        expectLeaveObject();
+        expectEnterArray();
+        expectLeaveArray();
+        expectLeaveArray();
+        expectLeaveObject();
+    });
+}
+
 TEST(UJson, BunchOfStuffz) {
-    process("{"
-            "  \"hero\": {"
-            "    \"xpos\": 844,"
-            "    \"ypos\": 511,"
-            "    \"id\": 59,"
-            "    \"name\": \"npc_dota_hero_huskar\","
-            "    \"level\": 25,"
-            "    \"alive\": true,"
-            "    \"respawn_seconds\": 0,"
-            "    \"buyback_cost\": 1231,"
-            "    \"buyback_cooldown\": 0,"
-            "    \"health\": 2682,"
-            "    \"max_health\": 2875,"
-            "    \"health_percent\": 93,"
-            "    \"mana\": 944,"
-            "    \"max_mana\": 944,"
-            "    \"mana_percent\": 100,"
-            "    \"silenced\": false,"
-            "    \"stunned\": false,"
-            "    \"disarmed\": false,"
-            "    \"magicimmune\": false,"
-            "    \"hexed\": false,"
-            "    \"muted\": false,"
-            "    \"break\": false,"
-            "    \"has_debuff\": false,"
-            "    \"talent_1\": true,"
-            "    \"talent_2\": false,"
-            "    \"talent_3\": false,"
-            "    \"talent_4\": true,"
-            "    \"talent_5\": true,"
-            "    \"talent_6\": false,"
-            "    \"talent_7\": true,"
-            "    \"talent_8\": false"
-            "  },"
-            "  \"previously\": {"
-            "    \"hero\": {"
-            "      \"health\": 2791,"
-            "      \"health_percent\": 97"
-            "    }"
-            "  }"
+    process("{\r\n"
+            "\t\"hero\": {\r\n"
+            "\t\t\"xpos\": 844,\r\n"
+            "\t\t\"ypos\": 511,\r\n"
+            "\t\t\"id\": 59,\r\n"
+            "\t\t\"name\": \"npc_dota_hero_huskar\",\r\n"
+            "\t\t\"level\": 25,\r\n"
+            "\t\t\"alive\": true,\r\n"
+            "\t\t\"respawn_seconds\": 0,\r\n"
+            "\t\t\"buyback_cost\": 1231,\r\n"
+            "\t\t\"buyback_cooldown\": 0,\r\n"
+            "\t\t\"health\": 2682,\r\n"
+            "\t\t\"max_health\": 2875,\r\n"
+            "\t\t\"health_percent\": 93,\r\n"
+            "\t\t\"mana\": 944,\r\n"
+            "\t\t\"max_mana\": 944,\r\n"
+            "\t\t\"mana_percent\": 100,\r\n"
+            "\t\t\"silenced\": false,\r\n"
+            "\t\t\"stunned\": false,\r\n"
+            "\t\t\"disarmed\": false,\r\n"
+            "\t\t\"magicimmune\": false,\r\n"
+            "\t\t\"hexed\": false,\r\n"
+            "\t\t\"muted\": false,\r\n"
+            "\t\t\"break\": false,\r\n"
+            "\t\t\"has_debuff\": false,\r\n"
+            "\t\t\"talent_1\": true,\r\n"
+            "\t\t\"talent_2\": false,\r\n"
+            "\t\t\"talent_3\": false,\r\n"
+            "\t\t\"talent_4\": true,\r\n"
+            "\t\t\"talent_5\": true,\r\n"
+            "\t\t\"talent_6\": false,\r\n"
+            "\t\t\"talent_7\": true,\r\n"
+            "\t\t\"talent_8\": false\r\n"
+            "\t},\r\n"
+            "\t\"previously\": {\r\n"
+            "\t\t\"hero\": {\r\n"
+            "\t\t\t\"health\": 2791,\r\n"
+            "\t\t\t\"health_percent\": 97\r\n"
+    		"\t\t}\r\n"
+            "\t}\r\n"
             "}", [&](){
         expectEnterObject();
         expectKey("hero");
@@ -331,5 +285,3 @@ TEST(UJson, BunchOfStuffz) {
         expectLeaveObject();
     });
 }
-
-
