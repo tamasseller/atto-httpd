@@ -22,6 +22,9 @@
 
 #include <stddef.h>
 
+#include <IntParser.h>
+#include <Keywords.h>
+
 template<class Child, uint16_t maxDepth>
 class UJson {
         class BitStack {
@@ -64,6 +67,33 @@ class UJson {
 
         BitStack stack;
 
+        enum class State: uint8_t {
+            BeforeValue,
+            InString,
+            InStringQuote,
+            InNumber,
+            InLiteral,
+            AfterValue,
+            BeforeObjColon,
+            BeforeObjKey,
+        } state;
+
+        bool inObjKey;
+
+        enum class Literal: uint8_t {Null, True, False};
+        typedef Keywords<Literal, 3> LiteralKeywords;
+
+        static constexpr LiteralKeywords literalKeywords = {
+            typename LiteralKeywords::Keyword("null", Literal::Null),
+            typename LiteralKeywords::Keyword("true", Literal::True),
+            typename LiteralKeywords::Keyword("false", Literal::False),
+        };
+
+        union {
+                IntParser intParser;
+                typename LiteralKeywords::Matcher literalMatcher;
+        };
+
         enum class EntityType {
             Root, Object, Array
         };
@@ -89,18 +119,6 @@ class UJson {
             return stack.pop();
         }
 
-        enum class State: uint8_t {
-            BeforeValue,
-            InString,
-            InStringQuote,
-            InNumber,
-            InLiteral,
-            AfterValue,
-            BeforeObjColon,
-            BeforeObjKey,
-        } state;
-
-        bool inObjKey;
 
         static inline bool isWs(char c) {
             return c == ' ' || c == '\t' || c == '\r' || c == '\n';
@@ -155,6 +173,7 @@ class UJson {
                             if(*buff == '-' || isDigit(*buff)) {
                                 state = State::InNumber;
                                 ((Child*)this)->beforeValue(ValueType::Number);
+                                intParser.reset();
                             } else if(*buff == '\"'){
                                 state = State::InString;
                                 ((Child*)this)->beforeValue(ValueType::String);
@@ -175,8 +194,10 @@ class UJson {
 
                                 ((Child*)this)->beforeValue(ValueType::Object);
                                 buff++;
-                            } else
+                            } else {
+                                literalMatcher.reset();
                                 state = State::InLiteral;
+                            }
 
                             break;
                         }
@@ -234,8 +255,49 @@ class UJson {
                         buff++;
                         break;
                     case State::InNumber:
+                        start = buff;
+
+                        while(buff != end && (*buff == '-' || isDigit(*buff)))
+                            buff++;
+
+                        intParser.parseInt(start, buff - start);
+
+                        if(buff != end) {
+                            ((Child*)this)->onNumber(intParser.getData());
+                            ((Child*)this)->afterValue(ValueType::Number);
+                            state = State::AfterValue;
+                        }
+
                         break;
                     case State::InLiteral:
+                        start = buff;
+
+                        while(buff != end && !isWs(*buff) && *buff != ',' && *buff != ']' && *buff != '}')
+                            buff++;
+
+                        if(!literalMatcher.progress(literalKeywords, start, buff-start)) {
+                            ((Child*)this)->onValueError();
+                            state = State::AfterValue;
+                        } else {
+                            if(buff != end) {
+                                if(const typename LiteralKeywords::Keyword* result = literalMatcher.match(literalKeywords)) {
+                                    if(result->getValue() == Literal::Null) {
+                                        ((Child*)this)->beforeValue(ValueType::Null);
+                                        ((Child*)this)->onNull();
+                                        ((Child*)this)->afterValue(ValueType::Null);
+                                    } else {
+                                        ((Child*)this)->beforeValue(ValueType::Boolean);
+                                        ((Child*)this)->onBoolean(result->getValue() == Literal::True);
+                                        ((Child*)this)->afterValue(ValueType::Boolean);
+                                    }
+                                } else {
+                                    ((Child*)this)->onValueError();
+                                }
+
+                                state = State::AfterValue;
+                            }
+                        }
+
                         break;
                     case State::AfterValue:
                         while(buff != end) {
@@ -315,5 +377,8 @@ class UJson {
             return true;
         }
 };
+
+template<class Child, uint16_t maxDepth>
+constexpr typename UJson<Child, maxDepth>::LiteralKeywords UJson<Child, maxDepth>::literalKeywords;
 
 #endif /* UJSON_H_ */

@@ -7,6 +7,7 @@ SOURCES += TestParser.cpp
 SOURCES += TestKeywords.cpp
 SOURCES += TestKvParser.cpp
 SOURCES += TestHexParser.cpp
+SOURCES += TestIntParser.cpp
 SOURCES += TestUrlParser.cpp
 SOURCES += TestAuthDigest.cpp
 SOURCES += TestPathParser.cpp
@@ -38,11 +39,13 @@ COMMONFLAGS += --coverage
 COMMONFLAGS += -fdelete-null-pointer-checks
 COMMONFLAGS += -fmax-errors=5
 COMMONFLAGS += -Wall -Wextra -Wno-unused
+COMMONFLAGS += -fno-pic
+COMMONFLAGS += -fno-pie
 
 CXXFLAGS += -std=c++11
 CXXFLAGS += -DCPPUTEST_USE_MEM_LEAK_DETECTION=0
 CXXFLAGS += -fno-exceptions
-CXXFLAGS += -DEXPECT_POOL_SIZE="(65535)"
+CXXFLAGS += -DEXPECT_POOL_SIZE="(32767)"
 
 USESANITIZERS=0
 
@@ -73,7 +76,10 @@ CXXFLAGS += -fstack-protector-strong
 CXXFLAGS += -fstack-check
 endif
 
-TEST_CMD_PREFIX=LD_LIBRARY_PATH=/opt/gcc-5.3.0/lib64/:/opt/gcc-5.3.0/lib32/
+LIBS += gcov 
+LDFLAGS += -static
+LDFLAGS += -z norelro
+
 CXX=x86_64-linux-gnu-g++-6
 CC=x86_64-linux-gnu-gcc-6
 CXXFLAGS += $(COMMONFLAGS)

@@ -126,10 +126,10 @@ TEST_GROUP(UJson) {
     };
 
 TEST(UJson, SimpleObject) {
-    process("{\"input\": \"json\", \"foo\" :\"bar\"}", [&](){
+    process("{\"input\": 3141, \"foo\" :\"bar\"}", [&](){
         expectEnterObject();
         expectKey("input");
-        expectString("json");
+        expectNumber(3141);
         expectKey("foo");
         expectString("bar");
         expectLeaveObject();
@@ -148,6 +148,19 @@ TEST(UJson, NestedObjects) {
     });
 }
 
+TEST(UJson, LiteralsInObject) {
+    process("{\"foo\": false, \"bar\": true, \"baz\": null}", [&](){
+        expectEnterObject();
+        expectKey("foo");
+        expectBoolean(false);
+        expectKey("bar");
+        expectBoolean(true);
+        expectKey("baz");
+        expectNull();
+        expectLeaveObject();
+    });
+}
+
 TEST(UJson, NestedArrays) {
     process("[[\"foo\", \"bar\"], \"baz\"]", [&](){
         expectEnterArray();
@@ -160,8 +173,30 @@ TEST(UJson, NestedArrays) {
     });
 }
 
+TEST(UJson, MatricArrays) {
+    process("[[1, -2, 3], [-4, 5, -6], [7, -8, 9]]", [&](){
+        expectEnterArray();
+        expectEnterArray();
+        expectNumber(1);
+        expectNumber(-2);
+        expectNumber(3);
+        expectLeaveArray();
+        expectEnterArray();
+        expectNumber(-4);
+        expectNumber(5);
+        expectNumber(-6);
+        expectLeaveArray();
+        expectEnterArray();
+        expectNumber(7);
+        expectNumber(-8);
+        expectNumber(9);
+        expectLeaveArray();
+        expectLeaveArray();
+    });
+}
+
 TEST(UJson, MixedNested) {
-    process("[{\"foo\":\"bar\", \"foobar\":\"baz\"}"
+    process("[{\"foo\":\"bar\", \"foobar\":\"baz\"},"
             "\"whatever\"]", [&](){
         expectEnterArray();
         expectEnterObject();
@@ -174,3 +209,127 @@ TEST(UJson, MixedNested) {
         expectLeaveArray();
     });
 }
+
+TEST(UJson, BunchOfStuffz) {
+    process("{"
+            "  \"hero\": {"
+            "    \"xpos\": 844,"
+            "    \"ypos\": 511,"
+            "    \"id\": 59,"
+            "    \"name\": \"npc_dota_hero_huskar\","
+            "    \"level\": 25,"
+            "    \"alive\": true,"
+            "    \"respawn_seconds\": 0,"
+            "    \"buyback_cost\": 1231,"
+            "    \"buyback_cooldown\": 0,"
+            "    \"health\": 2682,"
+            "    \"max_health\": 2875,"
+            "    \"health_percent\": 93,"
+            "    \"mana\": 944,"
+            "    \"max_mana\": 944,"
+            "    \"mana_percent\": 100,"
+            "    \"silenced\": false,"
+            "    \"stunned\": false,"
+            "    \"disarmed\": false,"
+            "    \"magicimmune\": false,"
+            "    \"hexed\": false,"
+            "    \"muted\": false,"
+            "    \"break\": false,"
+            "    \"has_debuff\": false,"
+            "    \"talent_1\": true,"
+            "    \"talent_2\": false,"
+            "    \"talent_3\": false,"
+            "    \"talent_4\": true,"
+            "    \"talent_5\": true,"
+            "    \"talent_6\": false,"
+            "    \"talent_7\": true,"
+            "    \"talent_8\": false"
+            "  },"
+            "  \"previously\": {"
+            "    \"hero\": {"
+            "      \"health\": 2791,"
+            "      \"health_percent\": 97"
+            "    }"
+            "  }"
+            "}", [&](){
+        expectEnterObject();
+        expectKey("hero");
+        expectEnterObject();
+        expectKey("xpos");
+        expectNumber(844);
+        expectKey("ypos");
+        expectNumber(511);
+        expectKey("id");
+        expectNumber(59);
+        expectKey("name");
+        expectString("npc_dota_hero_huskar");
+        expectKey("level");
+        expectNumber(25);
+        expectKey("alive");
+        expectBoolean(true);
+        expectKey("respawn_seconds");
+        expectNumber(0);
+        expectKey("buyback_cost");
+        expectNumber(1231);
+        expectKey("buyback_cooldown");
+        expectNumber(0);
+        expectKey("health");
+        expectNumber(2682);
+        expectKey("max_health");
+        expectNumber(2875);
+        expectKey("health_percent");
+        expectNumber(93);
+        expectKey("mana");
+        expectNumber(944);
+        expectKey("max_mana");
+        expectNumber(944);
+        expectKey("mana_percent");
+        expectNumber(100);
+        expectKey("silenced");
+        expectBoolean(false);
+        expectKey("stunned");
+        expectBoolean(false);
+        expectKey("disarmed");
+        expectBoolean(false);
+        expectKey("magicimmune");
+        expectBoolean(false);
+        expectKey("hexed");
+        expectBoolean(false);
+        expectKey("muted");
+        expectBoolean(false);
+        expectKey("break");
+        expectBoolean(false);
+        expectKey("has_debuff");
+        expectBoolean(false);
+        expectKey("talent_1");
+        expectBoolean(true);
+        expectKey("talent_2");
+        expectBoolean(false);
+        expectKey("talent_3");
+        expectBoolean(false);
+        expectKey("talent_4");
+        expectBoolean(true);
+        expectKey("talent_5");
+        expectBoolean(true);
+        expectKey("talent_6");
+        expectBoolean(false);
+        expectKey("talent_7");
+        expectBoolean(true);
+        expectKey("talent_8");
+        expectBoolean(false);
+        expectLeaveObject();
+        expectKey("previously");
+        expectEnterObject();
+        expectKey("hero");
+        expectEnterObject();
+        expectKey("health");
+        expectNumber(2791);
+        expectKey("health_percent");
+        expectNumber(97);
+        expectLeaveObject();
+        expectLeaveObject();
+        expectLeaveObject();
+    });
+}
+
+
