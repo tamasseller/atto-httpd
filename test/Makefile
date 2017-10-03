@@ -2,6 +2,7 @@ OUTPUT = httpd-test
 
 SOURCES += TestMain.cpp
 SOURCES += TestUXml.cpp
+SOURCES += TestUJson.cpp
 SOURCES += TestParser.cpp
 SOURCES += TestKeywords.cpp
 SOURCES += TestKvParser.cpp
