@@ -25,6 +25,8 @@
 #include <IntParser.h>
 #include <Keywords.h>
 
+enum class JsonValueType { Null, String, Number, Boolean, Array, Object };
+
 template<class Child, uint16_t maxDepth>
 class UJson {
         class BitStack {
@@ -99,20 +101,18 @@ class UJson {
          * To be imlemented by the user.
          */
 
-        enum class ValueType { Null, String, Number, Boolean, Array, Object };
-
         inline void beforeKey() {}
         inline void onKey(const char *at, size_t length) {}
         inline void onKeyError() {}
         inline void afterKey() {}
 
-        inline void beforeValue(ValueType) {}
+        inline void beforeValue(JsonValueType) {}
         inline void onNull() {}
         inline void onBoolean(bool) {}
         inline void onNumber(int32_t value) {}
         inline void onString(const char *at, size_t length) {}
         inline void onValueError() {}
-        inline void afterValue(ValueType) {}
+        inline void afterValue(JsonValueType) {}
 
         inline void onStructureError() {}
         inline void onResourceError() {}
@@ -124,13 +124,13 @@ class UJson {
         inline void flushLiteral() {
             if(const typename LiteralKeywords::Keyword* result = literalMatcher.match(literalKeywords)) {
                 if(result->getValue() == Literal::Null) {
-                    ((Child*)this)->beforeValue(ValueType::Null);
+                    ((Child*)this)->beforeValue(JsonValueType::Null);
                     ((Child*)this)->onNull();
-                    ((Child*)this)->afterValue(ValueType::Null);
+                    ((Child*)this)->afterValue(JsonValueType::Null);
                 } else {
-                    ((Child*)this)->beforeValue(ValueType::Boolean);
+                    ((Child*)this)->beforeValue(JsonValueType::Boolean);
                     ((Child*)this)->onBoolean(result->getValue() == Literal::True);
-                    ((Child*)this)->afterValue(ValueType::Boolean);
+                    ((Child*)this)->afterValue(JsonValueType::Boolean);
                 }
             } else {
                 ((Child*)this)->onValueError();
@@ -139,7 +139,7 @@ class UJson {
 
         inline void flushNumber() {
             ((Child*)this)->onNumber(intParser.getData());
-            ((Child*)this)->afterValue(ValueType::Number);
+            ((Child*)this)->afterValue(JsonValueType::Number);
         }
 
         inline void flushObject() {
@@ -177,9 +177,9 @@ class UJson {
             state = State::AfterValue;
 
         	if(currentEntity() == EntityType::Object)
-        		((Child*)this)->afterValue(ValueType::Object);
+        		((Child*)this)->afterValue(JsonValueType::Object);
         	else if(currentEntity() == EntityType::Array)
-                ((Child*)this)->afterValue(ValueType::Array);
+                ((Child*)this)->afterValue(JsonValueType::Array);
         	else
         		return;
 
@@ -217,11 +217,11 @@ class UJson {
 
                             if(*buff == '-' || isDigit(*buff)) {
                                 state = State::InNumber;
-                                ((Child*)this)->beforeValue(ValueType::Number);
+                                ((Child*)this)->beforeValue(JsonValueType::Number);
                                 intParser.reset();
                             } else if(*buff == '\"'){
                                 state = State::InString;
-                                ((Child*)this)->beforeValue(ValueType::String);
+                                ((Child*)this)->beforeValue(JsonValueType::String);
                                 buff++;
                             } else if(*buff == '['){
                                 state = State::BeforeValue;
@@ -229,7 +229,7 @@ class UJson {
                                 if(!enter(EntityType::Array))
                                     ((Child*)this)->onResourceError();
                                 else
-                                	((Child*)this)->beforeValue(ValueType::Array);
+                                	((Child*)this)->beforeValue(JsonValueType::Array);
 
                                 buff++;
                             } else if(*buff == ']') {
@@ -241,7 +241,7 @@ class UJson {
                                 if(!enter(EntityType::Object))
                                     ((Child*)this)->onResourceError();
                                 else
-                                	((Child*)this)->beforeValue(ValueType::Object);
+                                	((Child*)this)->beforeValue(JsonValueType::Object);
 
                                 buff++;
                             } else {
@@ -277,7 +277,7 @@ class UJson {
                                 ((Child*)this)->afterKey();
                                 inObjKey = false;
                             } else
-                                ((Child*)this)->afterValue(ValueType::String);
+                                ((Child*)this)->afterValue(JsonValueType::String);
                         }else if(state == State::InStringQuote)
                         	buff++;
 
@@ -418,7 +418,7 @@ class UJson {
                 	break;
                 case State::InStringQuote:
                 case State::InString:
-                	((Child*)this)->afterValue(ValueType::String);
+                	((Child*)this)->afterValue(JsonValueType::String);
                 	((Child*)this)->onStructureError();
                 	break;
                 case State::BeforeValue:

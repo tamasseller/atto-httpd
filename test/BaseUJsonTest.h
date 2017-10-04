@@ -23,7 +23,7 @@ TEST_GROUP(UJson) {
 	struct Uut: public UJson<Uut, 32> {
 		std::string key, value;
 		bool hasType = false;
-		ValueType lastType;
+		JsonValueType lastType;
 
 		inline void beforeKey() {
 			key = "";
@@ -34,16 +34,16 @@ TEST_GROUP(UJson) {
 		inline void afterKey() {
 			MOCK(ujson)::CALL(key).withStringParam(key.c_str());}
 
-		inline void beforeValue(ValueType type) {
+		inline void beforeValue(JsonValueType type) {
 			CHECK(!hasType);
 
-			if(type == ValueType::String)
+			if(type == JsonValueType::String)
 				value = "";
 
-			if (type == ValueType::Array) {
+			if (type == JsonValueType::Array) {
 				MOCK(ujson)::CALL(enterArray);
 				hasType = false;
-			} else if (type == ValueType::Object) {
+			} else if (type == JsonValueType::Object) {
 				MOCK(ujson)::CALL(enterObject);
 				hasType = false;
 			} else {
@@ -59,12 +59,12 @@ TEST_GROUP(UJson) {
 			value += std::string(at, length);
 
 		}
-		inline void afterValue(ValueType type) {
-			if(type == ValueType::String)
+		inline void afterValue(JsonValueType type) {
+			if(type == JsonValueType::String)
 				MOCK(ujson)::CALL(string).withStringParam(value.c_str());
-			else if (type == ValueType::Array)
+			else if (type == JsonValueType::Array)
 				MOCK(ujson)::CALL(leaveArray);
-			else if (type == ValueType::Object)
+			else if (type == JsonValueType::Object)
 				MOCK(ujson)::CALL(leaveObject);
 
 			if(hasType)

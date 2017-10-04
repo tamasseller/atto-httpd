@@ -22,6 +22,10 @@
 #include <stdint.h>
 #include <string.h>
 
+struct KeywordMatcherState {
+	uint16_t idx, offset;
+};
+
 template<class T, unsigned int N>
 class Keywords {
 public:
@@ -48,64 +52,80 @@ public:
 	template<class... V>
 	constexpr Keywords(V... args): words{args...} {}
 
-	class Matcher {
-		uint16_t idx, offset;
-	public:
-		void reset() {
-			idx = 0;
-			offset = 0;
+	struct DetachedMatcher {
+		static inline void reset(KeywordMatcherState* state) {
+			state->idx = 0;
+			state->offset = 0;
 		}
 
-		bool progress(const Keywords& kw, const char* str, uint32_t len)
+		static inline bool progress(KeywordMatcherState* state, const Keywords& kw, const char* str, uint32_t len)
 		{
-			if(idx == 0xffff)
+			if(state->idx == 0xffff)
 				return false;
 
 			while(len--) {
-				if(*str != kw.words[idx].key[offset]) {
-					uint16_t altidx = idx;
+				if(*str != kw.words[state->idx].key[state->offset]) {
+					uint16_t altidx = state->idx;
 					do {
 						altidx = (altidx != N - 1) ? (altidx + 1) : 0;
-						if(offset < strlen(kw.words[altidx].key) &&
-								*str == kw.words[altidx].key[offset] &&
-								strncmp(kw.words[idx].key, kw.words[altidx].key, offset) == 0)
+						if(state->offset < strlen(kw.words[altidx].key) &&
+								*str == kw.words[altidx].key[state->offset] &&
+								strncmp(kw.words[state->idx].key, kw.words[altidx].key, state->offset) == 0)
 							break;
-					} while(altidx != idx);
+					} while(altidx != state->idx);
 
-					if(altidx == idx) {
-						idx = 0xffff;
+					if(altidx == state->idx) {
+						state->idx = 0xffff;
 						return false;
 					}
 
-					idx = altidx;
+					state->idx = altidx;
 				}
 
-				offset++;
+				state->offset++;
 				str++;
 			}
 			return true;
 		}
 
-		bool progress(const Keywords& kw, const char* str)
+		static inline bool progress(KeywordMatcherState* state, const Keywords& kw, const char* str)
 		{
-			return progress(kw, str, strlen(str));
+			return progress(state, kw, str, strlen(str));
 		}
 
-		const Keyword* match(const Keywords& kw)
+		static inline const Keyword* match(KeywordMatcherState* state, const Keywords& kw)
 		{
-			if(idx != 0xffff) {
-				if(offset == strlen(kw.words[idx].key))
-					return &kw.words[idx];
+			if(state->idx != 0xffff) {
+				if(state->offset == strlen(kw.words[state->idx].key))
+					return &kw.words[state->idx];
 
 				for(int sidx = N-1; sidx >= 0; sidx--) {
-					if(	(sidx != idx) &&
-						(offset == strlen(kw.words[sidx].key)) &&
-						(strncmp(kw.words[idx].key, kw.words[sidx].key, offset) == 0))
+					if(	(sidx != state->idx) &&
+						(state->offset == strlen(kw.words[sidx].key)) &&
+						(strncmp(kw.words[state->idx].key, kw.words[sidx].key, state->offset) == 0))
 						return &kw.words[sidx];
 				}
 			}
 
 			return 0;
+		}
+	};
+
+	struct Matcher: private DetachedMatcher, private KeywordMatcherState {
+		inline void reset() {
+			DetachedMatcher::reset(this);
+		}
+
+		inline bool progress(const Keywords& kw, const char* str, uint32_t len) {
+			return DetachedMatcher::progress(this, kw, str, len);
+		}
+
+		inline bool progress(const Keywords& kw, const char* str) {
+			return DetachedMatcher::progress(this, kw, str);
+		}
+
+		inline const Keyword* match(const Keywords& kw) {
+			return DetachedMatcher::match(this, kw);
 		}
 	};
 };
