@@ -55,6 +55,12 @@ TEST(IntParser, Min)
     process("2147483648", -2147483648);
 }
 
+TEST(IntParser, Garbage)
+{
+	CHECK(!processBad("foo"));
+	CHECK(!processBad("0-1"));
+}
+
 // TODO Don't care to implement over/underflow checking right now.
 IGNORE_TEST(IntParser, OverMax)
 {
