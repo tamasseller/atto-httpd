@@ -89,7 +89,7 @@ public:
 		inline bool parse(const char* buff, uint32_t length) {
 			auto self = static_cast<Child*>(this);
 
-			for(const char* const end = buff + length; buff != end; buff++) {
+			for(const char* const end = buff + length; buff != end;) {
 				uint8_t value = detail::Alphabet::reverseLut[(unsigned char)*buff];
 
 				if(value == (uint8_t)-1) {
@@ -97,11 +97,35 @@ public:
 						return false;
 
 					state.setIdx(0);
+					buff++;
 					continue;
 				}
 
 				switch(state.getIdx()) {
 				case 0:
+				    if(end-buff >= 4) {
+				        uint8_t value2 = detail::Alphabet::reverseLut[(unsigned char)buff[1]];
+				        uint8_t value3 = detail::Alphabet::reverseLut[(unsigned char)buff[2]];
+				        uint8_t value4 = detail::Alphabet::reverseLut[(unsigned char)buff[3]];
+
+				        if(value2 == -1)
+				            return false;
+
+                        self->byteDecoded(value << 2 | value2 >> 4);
+
+		                if(value3 == (uint8_t)-1)
+		                    return buff[2] == '=';
+
+                        self->byteDecoded(value2 << 4 | value3 >> 2);
+
+                        if(value4 == (uint8_t)-1)
+                            return buff[3] == '=';
+
+                        self->byteDecoded(value3 << 6 | value4);
+
+				        buff += 4;
+				        continue;
+				    }
 					state.setLeftover(value);
 					break;
 				case 1:
@@ -118,6 +142,7 @@ public:
 				}
 
 				state.setIdx((state.getIdx() + 1) & 3);
+				buff++;
 			}
 
 			return true;
@@ -146,11 +171,22 @@ public:
 		inline void format(const char* buff, uint32_t length) {
 			auto self = static_cast<Child*>(this);
 
-			for(const char* const end = buff + length; buff != end; buff++) {
+			for(const char* const end = buff + length; buff != end;) {
 				uint8_t value = (unsigned char)*buff;
 
 				switch(state.getIdx()) {
 				case 0:
+                    if(end-buff >= 3) {
+                       uint8_t value2 = buff[1];
+                       uint8_t value3 = buff[2];
+
+                       self->byteEncoded(detail::Alphabet::forwardLut[value >> 2]);
+                       self->byteEncoded(detail::Alphabet::forwardLut[value2 >> 4 | (value & 0x3) << 4]);
+                       self->byteEncoded(detail::Alphabet::forwardLut[value3 >> 6 | (value2 & 0xf )<< 2]);
+                       self->byteEncoded(detail::Alphabet::forwardLut[value3 & 0x3f]);
+                       buff += 3;
+                       continue;
+                    }
 					self->byteEncoded(detail::Alphabet::forwardLut[value >> 2]);
 					state.setLeftover(value & 0x03);
 					state.setIdx(1);
@@ -166,6 +202,8 @@ public:
 					state.setIdx(0);
 					break;
 				}
+
+				buff++;
 			}
 		}
 

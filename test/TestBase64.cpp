@@ -106,8 +106,8 @@ TEST(Base64, ParserSanity) {
 }
 
 TEST(Base64, ParserPadding) {
-	parse(foo64, "foo");
-	parse(bar64, "bar");
+	parse(a64, "a");
+	parse(bb64, "bb");
 }
 
 TEST(Base64, ParserRestart) {
@@ -119,6 +119,10 @@ TEST(Base64, ParserRestart) {
 TEST(Base64, ParserDumbass1) {
 	put.reset();
 	CHECK(!put.parse("FOO@BAR", 7));
+
+    put.reset();
+    CHECK(!put.parse("B@R", 3));
+
 }
 
 TEST(Base64, ParserDumbass2) {
@@ -133,8 +137,8 @@ TEST(Base64, FormatterSanity) {
 }
 
 TEST(Base64, FormatterPadding) {
-	format(foo64, "foo");
-	format(bar64, "bar");
+    format(a64, "a");
+    format(bb64, "bb");
 }
 
 TEST(Base64, FormatterRestart) {
