@@ -13,8 +13,7 @@
 class EntityFilter {
 	template<uint16_t> friend class JsonParser;
 
-	EntityFilter* const parent;
-	inline EntityFilter(EntityFilter* parent): parent(parent) {}
+	EntityFilter* parent = nullptr;
 
 	virtual void beforeKey(JsonParser*) = 0;
 	virtual void onKey(JsonParser*, const char *at, size_t length) = 0;
@@ -29,16 +28,28 @@ class EntityFilter {
 	inline virtual ~EntityFilter() {}
 };
 
-class ArrayFilter {
+template<size_t n>
+class ArrayFilter: public EntityFilter {
 	template<uint16_t> friend class JsonParser;
 
-	struct Entry {
-		uint32_t idx;
-		EntityFilter* child;
-	};
+public:
+	class Entry {
+			friend ArrayFilter;
+			uint32_t idx;
+			EntityFilter* child;
 
-	inline ArrayFilter(EntityFilter* parent, EntrySet*): ArrayFilter(parent) {}
+		public:
+			Entry (uint32_t idx, EntityFilter* child): idx(idx), child(child) {}
 
+	} entries[n];
+
+	template<class... T>
+	inline ArrayFilter(T... t): entries(t) {
+		for(int i = 0; i < n; i++)
+			entries[i].child->parent = this;
+	}
+
+private:
 	inline virtual void beforeKey(JsonParser*) {
 
 	}
@@ -137,11 +148,6 @@ class JsonParser: public UJson<JsonParser, maxDepth>
         inline void onValueError() {error = true;}
         inline void onStructureError() {error = true;}
         inline void onResourceError() {error = true;}
-
-        union SharedState {
-        	uint32_t idx;
-        	KeywordMatcherState kms;
-        };
 
     public:
 
