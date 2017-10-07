@@ -52,6 +52,14 @@ public:
 	template<class... V>
 	constexpr Keywords(V... args): words{args...} {}
 
+	const Keyword* begin() {
+		return words;
+	}
+
+	const Keyword* end() {
+		return words + N;
+	}
+
 	struct DetachedMatcher {
 		static inline void reset(KeywordMatcherState* state) {
 			state->idx = 0;
