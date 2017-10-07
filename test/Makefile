@@ -10,6 +10,7 @@ SOURCES += TestKvParser.cpp
 SOURCES += TestHexParser.cpp
 SOURCES += TestIntParser.cpp
 SOURCES += TestUrlParser.cpp
+SOURCES += TestJsonParser.cpp
 SOURCES += TestAuthDigest.cpp
 SOURCES += TestUJsonAbuse.cpp
 SOURCES += TestPathParser.cpp

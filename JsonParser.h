@@ -13,19 +13,46 @@
 class EntityFilter {
 	template<uint16_t> friend class JsonParser;
 
-	EntityFilter* parent = nullptr;
+	EntityFilter* parent;
+	uint32_t depth;
 
-	virtual void beforeKey(JsonParser*) = 0;
-	virtual void onKey(JsonParser*, const char *at, size_t length) = 0;
-	virtual void afterKey(JsonParser*) = 0;
-	virtual void beforeValue(JsonParser*, JsonValueType) = 0;
-	virtual void onNull(JsonParser*) = 0;
-	virtual void onBoolean(JsonParser*, bool) = 0;
-	virtual void onNumber(JsonParser*, int32_t value) = 0;
-	virtual void onString(JsonParser*, const char *at, size_t length) = 0;
-	virtual void afterValue(JsonParser*, JsonValueType) = 0;
+protected:
+	struct Parser {
+		virtual void enter(EntityFilter*) = 0;
+	};
+
+private:
+	virtual void beforeKey() {}
+	virtual void onKey(const char *at, size_t length) {}
+	virtual void afterKey() {}
+	virtual void beforeValue(Parser*, JsonValueType) {}
+	virtual void onNull() {}
+	virtual void onBoolean(bool) {}
+	virtual void onNumber(int32_t value) {}
+	virtual void onString(const char *at, size_t length) {}
+	virtual void afterValue(JsonValueType) {}
+
+public:
+	virtual void reset(EntityFilter* parent) {this->parent = parent;}
 
 	inline virtual ~EntityFilter() {}
+};
+
+class FilterEntry {
+		template<size_t> friend class ArrayFilter;
+		template<size_t> friend class ObjectFilter;
+
+		union {
+			uint32_t idx;
+			const char* name;
+		};
+
+		EntityFilter* child;
+
+	public:
+		FilterEntry (uint32_t idx, EntityFilter* child): idx(idx), child(child) {}
+		FilterEntry (const char* name, EntityFilter* child): name(name), child(child) {}
+
 };
 
 template<size_t n>
@@ -33,115 +60,118 @@ class ArrayFilter: public EntityFilter {
 	template<uint16_t> friend class JsonParser;
 
 public:
-	class Entry {
-			friend ArrayFilter;
-			uint32_t idx;
-			EntityFilter* child;
-
-		public:
-			Entry (uint32_t idx, EntityFilter* child): idx(idx), child(child) {}
-
-	} entries[n];
+	FilterEntry entries[n];
+	uint32_t idx;
 
 	template<class... T>
-	inline ArrayFilter(T... t): entries(t) {
-		for(int i = 0; i < n; i++)
-			entries[i].child->parent = this;
-	}
+	inline ArrayFilter(T... t): entries{t...} {}
+	inline virtual ~ArrayFilter() {}
 
 private:
-	inline virtual void beforeKey(JsonParser*) {
+	inline virtual void reset(EntityFilter* parent) {
+		EntityFilter::reset(parent);
+		idx = 0;
 
+		for(auto e: entries)
+			e.child->reset(this);
 	}
 
-	inline virtual void onKey(JsonParser*, const char *at, size_t length) {
+	inline virtual void beforeValue(Parser* parser, JsonValueType) {
+		for(auto e: entries) {
+			if(e.idx == idx) {
+				parser->enter(e.child);
+				break;
+			}
+		}
 
+		idx++;
 	}
-
-	inline virtual void afterKey(JsonParser*) {
-
-	}
-
-	inline virtual void beforeValue(JsonParser*, JsonValueType) {
-
-	}
-
-	inline virtual void onNull(JsonParser*) {
-
-	}
-
-	inline virtual void onBoolean(JsonParser*, bool) {
-
-	}
-
-	inline virtual void onNumber(JsonParser*, int32_t value) {
-
-	}
-
-	inline virtual void onString(JsonParser*, const char *at, size_t length) {
-
-	}
-
-	inline virtual void afterValue(JsonParser*, JsonValueType) {
-
-	}
-
-	inline virtual ~ArrayFilter() {}
 };
 
+class NumberExtractor: public EntityFilter {
+	int &result;
+
+	inline virtual void onNumber(int32_t value) {
+		result = value;
+	}
+public:
+	inline NumberExtractor(int &result): result(result) {}
+};
+
+template<template<size_t> class T, class... A>
+T<sizeof...(A)> assemble(A... a) {
+	return T<sizeof...(A)>(a...);
+}
 
 template<uint16_t maxDepth>
-class JsonParser: public UJson<JsonParser, maxDepth>
+class JsonParser: public UJson<JsonParser<maxDepth>, maxDepth>, public EntityFilter::Parser
 {
         typedef UJson<JsonParser, maxDepth> Parent;
         friend Parent;
 
         EntityFilter *filter;
         bool error;
+        uint32_t depth;
 
         inline void beforeKey() {
             if(!error && filter)
-                filter->beforeKey(this);
+                filter->beforeKey();
         }
 
         inline void onKey(const char *at, size_t length) {
             if(!error && filter)
-                filter->onKey(this, at, length);
+                filter->onKey(at, length);
         }
 
         inline void afterKey() {
             if(!error && filter)
-                filter->afterKey(this);
+                filter->afterKey();
         }
 
         inline void beforeValue(JsonValueType type) {
-            if(!error && filter)
-                filter->beforeValue(this, type);
+        	if(depth++) {
+				if(!error && filter)
+					filter->beforeValue(this, type);
+
+				filter->depth++;
+        	}
         }
 
         inline void onNull() {
             if(!error && filter)
-                filter->onNull(this);
+                filter->onNull();
         }
 
         inline void onBoolean(bool x) {
             if(!error && filter)
-                filter->onBoolean(this, x);
+                filter->onBoolean(x);
         }
 
         inline void onNumber(int32_t value) {
             if(!error && filter)
-                filter->onNumber(this, value);
+                filter->onNumber(value);
         }
 
         inline void onString(const char *at, size_t length) {
             if(!error && filter)
-                filter->onString(this, at, length);
+                filter->onString(at, length);
         }
 
-        inline void afterValue(JsonValueType type) {
-            if(!error && filter)
-                filter->afterValue(this, type);
+        inline void afterValue(JsonValueType type)
+        {
+        	if(depth--) {
+				if(!--filter->depth)
+					filter = filter->parent;
+
+				if(!error && filter)
+					filter->afterValue(type);
+        	}
+        }
+
+        virtual void enter(EntityFilter *filter) {
+        	filter->parent = this->filter;
+        	filter->depth = 0;
+        	this->filter = filter;
         }
 
         inline void onKeyError() {error = true;}
@@ -150,12 +180,15 @@ class JsonParser: public UJson<JsonParser, maxDepth>
         inline void onResourceError() {error = true;}
 
     public:
-
         void reset(EntityFilter *filter) {
             Parent::reset();
             error = false;
+            depth = 0;
             this->filter = filter;
+            this->filter->reset(nullptr);
         }
+
+        inline virtual ~JsonParser(){}
 };
 
 #endif /* JSONPARSER_H_ */
