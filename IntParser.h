@@ -9,6 +9,9 @@
 
 #include <stdint.h>
 
+/**
+ * Non-buffered signed integer parser.
+ */
 class IntParser {
     int32_t data;
     enum class SignState: uint8_t {NYET, PLUS, MINUS, DONE} sign;

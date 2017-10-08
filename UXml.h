@@ -22,10 +22,69 @@
 #include <stdint.h>
 #include <string.h>
 
+/**
+ * Non-validating, zero-copy XML parser, with namespace support.
+ *
+ *  - Non-validating means that it does not try to detect errors,
+ *    its behavior is undefined on invalid input data.
+ *  - Zero-copy means that no buffering is required, it can consume
+ *    arbitrarily sliced data, so long as it is valid XML.
+ *  - Namespace support means that the when a namespace definition
+ *    is encountered it is stored in a way that enables the later
+ *    lookup of the namespace belonging to an entity name, with or
+ *    without an explicit tag (the thing before the colon).
+ *
+ * Handling of the XML namespaces of a given element can only
+ * be done using a stack to hold the namespace definitions of
+ * the outer elements. So it contains a stack with a configurable
+ * size, that holds the the namespace URLs and the associated tags.
+ *
+ * Both the tags and the URLs are variable in length, thus the
+ * stack is organized in such way that it enables storing these
+ * variably sized data. Also tags and URLs have to be kept in pairs.
+ * The storage solutions also needs to be capable of organizing
+ * these key value pairs according to the elements they appear in.
+ * And, of course, it has to provide for searching the stored keys
+ * in a specific order, such that it examines the namespace
+ * definitions of the closer parent elements first then the higher
+ * ones.
+ *
+ * The stack uses a continuous memory area, the lower bounding
+ * address (start) of which is fixed, the higher end of it is
+ * incremented for push-like operations and decremented for
+ * pop-like operations.
+ *
+ * On the first level, content is block structured, each block
+ * contains zero or more non-zero characters followed by a terminating
+ * zero. On the next levels frames belonging to XML elements are
+ * formed using zero or more key-value pair blocks, where the key
+ * and the value are separated with a '=' character. Layers are
+ * terminated using an empty block.
+ *
+ *             Blocks
+ *
+ * /-----\/-----\/\/-----\/-----\/\
+ * k1=v1\0k2=v2\0\0k3=v3\0k4=v5\0\0
+ * \--------------/\--------------/
+ *    Frame 0          Frame 1
+ *
+ * Data can be written byte-by-byte when processing the namespace
+ * definitions, and can be dropped as whole frames exiting an element.
+ *
+ * Apart from its use as the backing store for namespace definitions
+ * the storage area of the stack can be used by the users of the
+ * parser, to hold small amounts of application data. The user data
+ * storage "heap" uses the end of the storage area, and returns
+ * successively lower addresses for subsequent invocations. It does
+ * not use any meta-data nor does it support de-allocation, so it could
+ * be called more correctly an arena allocator.
+ */
 template<class Child, unsigned int stackSize = 128>
 class UXml {
+	/// String constant, fed to the user on a partial match.
 	static constexpr const char *xmlns="xmlns";
 
+	/// Input processing state.
 	enum class State: uint8_t {
 		Content,
 		TagStart,
@@ -45,12 +104,24 @@ class UXml {
 		WaitClose
 	};
 
-	uint16_t stackIdx, stackEnd;
+	/// The index of the next byte to be written on the stack.
+	uint16_t stackIdx;
+
+	/// The index of the last element that is not used for user allocation.
+	uint16_t stackEnd;
+
+	/// Shared storage area for the stack and user allocator.
 	char stack[stackSize];
+
+	/// Main input processing state.
 	State state;
+
+	/// The expected delimiter (single or double quotation mark) for quoted strings.
 	char delimiter;
 
+	// Used to access the internal stack implementation to enable separate testing.
 	friend class UXmlStackTest;
+
 	inline bool writeEntry(char);
 	inline bool writeEntry(const char *, uint32_t);
 	inline bool terminateEntry();

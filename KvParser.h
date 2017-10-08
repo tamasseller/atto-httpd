@@ -19,6 +19,15 @@
 #ifndef KVPARSER_H_
 #define KVPARSER_H_
 
+/**
+ * Key-value pair parser.
+ *
+ * It expects the key and value to not contain space
+ * characters and to be in the form: <key>=<value>.
+ *
+ * Calls the user supplied CRTP related Child class's
+ * relevant methods.
+ */
 template <class Child>
 class KvParser {
         enum State {
@@ -28,7 +37,26 @@ class KvParser {
             DONE
         } state;
 
+	protected:
+        /*
+         * Callbacks, to be overridden by the user.
+         */
+        inline void parseKey(const char * buff, unsigned int len) {}
+        inline void keyDone() {}
+        inline void parseValue(const char * buff, unsigned int len) {}
+        inline void valueDone() {}
+
     public:
+        /**
+         * Initialize internal state.
+         */
+        void reset() {
+        	state = KEY;
+        }
+
+        /**
+         * Parse a block of data.
+         */
         void progressWithKv(const char* buff, unsigned int length)
         {
             if(!length)
@@ -70,15 +98,16 @@ class KvParser {
                 ((Child*)this)->parseValue(start, buff-start);
         }
 
+        /**
+         * Finalize parsing.
+         *
+         * Must be called upon reached end-of-input.
+         */
         void kvDone() {
             if(state == KEY)
             	((Child*)this)->keyDone();
             else if(state == VALUE)
             	((Child*)this)->valueDone();
-        }
-
-        void reset() {
-        	state = KEY;
         }
 };
 

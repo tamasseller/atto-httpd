@@ -1,6 +1,6 @@
-OUTPUT = WinPutDump.exe
+OUTPUT = WinPostDump.exe
 
-SOURCES += WinPutDump.cpp
+SOURCES += WinPostDump.cpp
 
 SOURCES += ../../md5/md5.c
 SOURCES += ../../http-parser/http_parser.c

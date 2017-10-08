@@ -21,6 +21,9 @@
 
 #include <stdint.h>
 
+/**
+ * Non-buffered parser for fixed size hexadecimal data.
+ */
 template<unsigned int size>
 class HexParser {
 	uint32_t idx;

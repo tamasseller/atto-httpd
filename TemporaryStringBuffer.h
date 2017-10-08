@@ -22,15 +22,32 @@
 #include <stdint.h>
 #include <string.h>
 
+/**
+ * String buffer.
+ *
+ * It can store successive characters.
+ */
 template<unsigned int size>
 class TemporaryStringBuffer {
+	/// Index of the next byte to be written.
 	uint32_t idx;
+
+	/// Data storage.
 	char storage[size];
 public:
+	/// Zero contents.
 	inline void clear();
+
+	/// Copy a block of data.
 	inline bool save(const char *at, uint32_t length);
+
+	/// Write terminator, without incrementing index.
 	inline void terminate();
+
+	/// Read only contents accessor.
 	inline const char *data();
+
+	/// Read only length of contents accessor.
 	inline uint32_t length();
 };
 

@@ -25,6 +25,7 @@
 
 #include "DavProperty.h"
 #include "HttpLogic.h"
+#include "JsonParser.h"
 
 #define DEFAULT_BUFLEN 512
 #define DEFAULT_PORT "27015"
@@ -49,20 +50,67 @@ class HttpSession: protected HttpLogic<HttpSession, Types>
 	using ResourceLocator = Types::ResourceLocator;
 	SOCKET& socket;
 
+    bool silenced = false, stunned = false, disarmed = false, hexed = false, muted = false;
+    BoolExtractor silencedExtractor, stunnedExtractor, disarmedExtractor, hexedExtractor, mutedExtractor;
+
+    int healthPercent = -1, manaPercent = -1;
+    NumberExtractor healthPercentExtractor, manaPercentExtractor;
+
+	ObjectFilter<7> propertiesFilter = ObjectFilter<7>(
+			FilterEntry("health_percent", &healthPercentExtractor),
+			FilterEntry("mana_percent", &manaPercentExtractor),
+			FilterEntry("silenced", &silencedExtractor),
+			FilterEntry("stunned", &stunnedExtractor),
+			FilterEntry("disarmed", &disarmedExtractor),
+			FilterEntry("hexed", &hexedExtractor),
+			FilterEntry("muted", &mutedExtractor)
+		);
+
+	ObjectFilter<1> rootFilter = ObjectFilter<1>(FilterEntry("hero", &propertiesFilter));
+
+	JsonParser<8> jsonParser;
+
 	void send(const char* str, unsigned int length) {
 		::send(socket, str, length, 0);
 	}
+
 	void flush() {}
 
-	HttpStatus writeContent(ResourceLocator* rl, const char* buff, uint32_t length)
+	inline HttpStatus arrangeReceiveInto(ResourceLocator* rl, const char* dstName, uint32_t length) {
+		jsonParser.reset(&rootFilter);
+		return HTTP_STATUS_OK;
+	}
+
+	inline HttpStatus writeContent(ResourceLocator* rl, const char* buff, uint32_t length)
 	{
-		std::cout << std::string(buff, length) << std::endl;
+		jsonParser.parse(buff, length);
+		return HTTP_STATUS_OK;
+	}
+
+	inline HttpStatus contentWritten(ResourceLocator* rl) {
+		if(jsonParser.done()) {
+			std::cout << "silenced: " << silenced << ", ";
+			std::cout << "stunned: " << stunned << ", ";
+			std::cout << "disarmed: " << disarmed << ", ";
+			std::cout << "hexed: " << hexed << ", ";
+			std::cout << "muted: " << muted << ", ";
+			std::cout << "healthPercent: " << healthPercent << ", ";
+			std::cout << "manaPercent: " << manaPercent << std::endl;
+		}
 		return HTTP_STATUS_OK;
 	}
 
 public:
 
-	inline HttpSession(SOCKET& socket): socket(socket) {
+	inline HttpSession(SOCKET& socket):
+		socket(socket),
+    	silencedExtractor(silenced),
+    	stunnedExtractor(stunned),
+    	disarmedExtractor(disarmed),
+    	hexedExtractor(hexed),
+    	mutedExtractor(muted),
+    	healthPercentExtractor(healthPercent),
+    	manaPercentExtractor(manaPercent) {
 		reset();
 	}
 

@@ -22,9 +22,26 @@
 #include <stdint.h>
 #include <string.h>
 
+/**
+ * Non-buffered matcher for constant strings
+ *
+ * Features:
+ *
+ *  - Size of internal state is independent of the length of string to be matched.
+ *  - Supports processing of arbitrarily fragmented data.
+ *  - The string to be matched is stored separately, to allow for storing it in a
+ *    different, read-only memory region (ie. program flash on MCUs).
+ */
 class ConstantStringMatcher{
+	/// Index of the last matched character or -1 on failure.
 	uint32_t idx;
 public:
+	/**
+	 * Process a block of data.
+	 *
+	 * The _str_ parameter is the string to matched, the rest of the
+	 * parameters define the block of input data to be processed.
+	 */
 	void progressWithMatching(const char* str, const char* buff, uint32_t length)
 	{
 		if(idx == -1u)
@@ -40,16 +57,15 @@ public:
 		}
 	}
 
-	void reset()
-	{
+	/// Initialize internal state.
+	void reset() {
 		idx = 0;
 	}
 
-	bool matches(const char* str)
-	{
+	/// Final check to rule out partial matches. Returns true on match.
+	bool matches(const char* str) {
 		return idx == strlen(str);
 	}
-
 };
 
 #endif /* CONSTANTSTRINGMATCHER_H_ */
