@@ -188,10 +188,11 @@ public:
 	inline void authFieldDone()
 	{
 		Splitter<AuthDigest>::splittingDone();
+		const char* hashA1 = AuthProvider::RFC2069_A1;
 
-		if(state == State::AuthTypeOk) {
+		if(state == State::AuthTypeOk && hashA1) {
 			MD5_Init(&RFC2069.md5Context);
-			MD5_Update(&RFC2069.md5Context, AuthProvider::RFC2069_A1, strlen(AuthProvider::RFC2069_A1));
+			MD5_Update(&RFC2069.md5Context, hashA1, strlen(hashA1));
 			MD5_Update(&RFC2069.md5Context, ":", 1);
 			MD5_Update(&RFC2069.md5Context, RFC2069.nonceHolder.data(), RFC2069.nonceHolder.length());
 			MD5_Update(&RFC2069.md5Context, ":", 1);

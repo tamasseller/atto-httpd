@@ -23,26 +23,21 @@
 
 #include <string>
 
-namespace {
-	struct Types {
-		static constexpr const uint32_t davStackSize = 192;
-		static constexpr const char* username = "foo";
-		static constexpr const char* realm = "bar";
-		static constexpr const char* RFC2069_A1 = "d65f52b42a2605dd84ef29a88bd75e1d";
-
-		static constexpr const DavProperty davProperties[2] = {
-			DavProperty("DAV:", "getcontentlength"),
-			DavProperty("foo://bar", "otherprop")
-		};
-
+struct DavProperties {
+	static constexpr const DavProperty properties[] = {
+		DavProperty("DAV:", "getcontentlength"),
+		DavProperty("foo://bar", "otherprop")
 	};
+};
 
-	constexpr const DavProperty Types::davProperties[2];
-}
+constexpr const DavProperty DavProperties::properties[];
 
 TEST_GROUP(HttpLogicOutput) {
 
-	struct Uut: public HttpLogic<Uut, Types> {
+	struct Uut: public HttpLogic<Uut,
+		HttpConfig::DavProperties<DavProperties>,
+		HttpConfig::DavStackSize<192>
+	> {
 		uint32_t n;
 
 		std::string response;
@@ -124,13 +119,13 @@ TEST_GROUP(HttpLogicOutput) {
 		{
 			if(n == 0 && !prop)
 				sendChunk("foo");
-			else if(n == 0 && (prop == Types::davProperties + 0))
+			else if(n == 0 && (prop == DavProperties::properties + 0))
 				sendChunk("1");
 			else if(n == 1 && !prop)
 				sendChunk("bar");
-			else if(n == 1 && (prop == Types::davProperties + 0))
+			else if(n == 1 && (prop == DavProperties::properties + 0))
 				sendChunk("2");
-			else if(prop == Types::davProperties + 1)
+			else if(prop == DavProperties::properties + 1)
 				sendChunk("awsome");
 
 			return HTTP_STATUS_OK;
@@ -144,7 +139,6 @@ TEST_GROUP(HttpLogicOutput) {
 		{
 			return generateListing(prop);
 		}
-
 
 		bool stepListing() {
 			if(n != 1) {
@@ -358,8 +352,7 @@ TEST(HttpLogicOutput, Options)
 			"\r\n");
 }
 
-
-IGNORE_TEST(HttpLogicOutput, PropfindAllprops)
+TEST(HttpLogicOutput, PropfindAllprops)
 {
 	uut.process("PROPFIND / HTTP/1.1\r\n"
 			"Depth:1\r\n\r\n");
@@ -394,8 +387,7 @@ IGNORE_TEST(HttpLogicOutput, PropfindAllprops)
 			"</multistatus>");
 }
 
-
-IGNORE_TEST(HttpLogicOutput, PropfindProp)
+TEST(HttpLogicOutput, PropfindProp)
 {
 	const char* body =
 		"<?xml version='1.0' encoding='utf-8'?>"
@@ -466,7 +458,7 @@ IGNORE_TEST(HttpLogicOutput, PropfindProp)
 }
 
 
-IGNORE_TEST(HttpLogicOutput, PropfindPropnames)
+TEST(HttpLogicOutput, PropfindPropnames)
 {
 	const char* body =
 		"<?xml version='1.0' encoding='utf-8'?>"

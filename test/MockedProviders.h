@@ -27,19 +27,23 @@
 
 namespace {
 
-	struct Types {
-		static constexpr const char* username = "foo";
-		static constexpr const char* realm = "bar";
-		static constexpr const char* RFC2069_A1 = "d65f52b42a2605dd84ef29a88bd75e1d";
-		static constexpr const uint32_t davStackSize = 192;
+	static constexpr const char username[] = "foo";
+	static constexpr const char realm[] = "bar";
+	static constexpr const char RFC2069_A1[] = "d65f52b42a2605dd84ef29a88bd75e1d";
 
-		static constexpr const DavProperty davProperties[] {
+	struct DavProperties {
+		static constexpr const DavProperty properties[] {
 			DavProperty("DAV:", "getcontentlength")
 		};
-
 	};
 
-	struct MockedHttpLogic: public HttpLogic<MockedHttpLogic, Types> {
+	struct MockedHttpLogic: public HttpLogic<MockedHttpLogic,
+		HttpConfig::AuthUser<username>,
+		HttpConfig::AuthRealm<realm>,
+		HttpConfig::AuthPasswdHash<RFC2069_A1>,
+		HttpConfig::DavStackSize<192>,
+		HttpConfig::DavProperties<DavProperties>
+	> {
 		struct ResourceLocator {
 			std::string path;
 		} src, dst;
@@ -188,14 +192,14 @@ namespace {
 
 		HttpStatus generateFileListing(const DavProperty* prop) {
 			CHECK(resource == &src);
-			CHECK(!prop || prop == Types::davProperties);
+			CHECK(!prop || prop == DavProperties::properties);
 			workerCalled = true;
 			return errAt != ErrAt::Listing ? HTTP_STATUS_OK : HTTP_STATUS_FORBIDDEN;
 		}
 
 		HttpStatus generateDirectoryListing(const DavProperty* prop) {
 			CHECK(resource == &src);
-			CHECK(!prop || prop == Types::davProperties);
+			CHECK(!prop || prop == DavProperties::properties);
 			workerCalled = true;
 			return errAt != ErrAt::Listing ? HTTP_STATUS_OK : HTTP_STATUS_FORBIDDEN;
 		}
@@ -221,7 +225,7 @@ namespace {
 	MockedHttpLogic::ResourceLocator* MockedHttpLogic::resource;
 	bool MockedHttpLogic::workerCalled;
 	MockedHttpLogic::ErrAt MockedHttpLogic::errAt;
-	constexpr const DavProperty Types::davProperties[1];
+	constexpr const DavProperty DavProperties::properties[1];
 }
 
 #endif /* MOCKEDPROVIDERS_H_ */

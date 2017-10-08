@@ -31,10 +31,11 @@
 #define DEFAULT_PORT "27015"
 
 struct Types {
-	static constexpr const uint32_t davStackSize = 192;
 	static constexpr const char* username = "foo";
 	static constexpr const char* realm = "bar";
 	static constexpr const char* RFC2069_A1 = "d65f52b42a2605dd84ef29a88bd75e1d";
+
+	static constexpr const uint32_t davStackSize = 192;
 	static constexpr const DavProperty davProperties[1] = {DavProperty("DAV:", "getcontentlength")};
 };
 

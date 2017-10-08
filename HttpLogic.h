@@ -29,15 +29,24 @@
 #include "DavProperty.h"
 
 #include "algorithm/Str.h"
+#include "meta/Configuration.h"
+
+namespace HttpConfig {
+	PET_CONFIG_VALUE(AuthUser, const char*);
+	PET_CONFIG_VALUE(AuthRealm, const char*);
+	PET_CONFIG_VALUE(AuthPasswdHash, const char*);
+	PET_CONFIG_VALUE(DavStackSize, uint32_t);
+	PET_CONFIG_TYPE(DavProperties);
+}
 
 // TODO add checks for destination accessibility.
 
 typedef http_status HttpStatus;
 
-template<class Provider, class Resources>
-class HttpLogic: public HttpRequestParser<HttpLogic<Provider, Resources> >,
-					UrlParser<HttpLogic<Provider, Resources> >,
-					PathParser<HttpLogic<Provider, Resources> >
+template<class Provider, class... Options>
+class HttpLogic: public HttpRequestParser<HttpLogic<Provider, Options...> >,
+					UrlParser<HttpLogic<Provider, Options...> >,
+					PathParser<HttpLogic<Provider, Options...> >
 {
 public:
 	enum class AuthStatus: uint8_t {
@@ -46,10 +55,30 @@ public:
 		Ok
 	};
 
+
 private:
+	struct DavProps {
+		typedef typename HttpConfig::DavProperties<void>::template extract<Options...>::type Input;
+		template<class T> static constexpr const DavProperty* p(const int T::*) {return T::properties;}
+		template<class T> static constexpr const DavProperty* p(...) {return nullptr;}
+		template<class T> static constexpr size_t c(const int T::*) {return sizeof(T::properties)/sizeof(DavProperty);}
+		template<class T> static constexpr size_t c(...) {return 0;}
+		static constexpr const DavProperty* properties = p<Input>(0);
+		static constexpr size_t count = c<Input>(0);
+	};
+
+	static constexpr uint32_t davStackSize = HttpConfig::DavStackSize<1>::extract<Options...>::value;
+
+	struct AuthParams {
+		static constexpr const char* username = HttpConfig::AuthUser<nullptr>::extract<Options...>::value;
+		static constexpr const char* realm = HttpConfig::AuthRealm<nullptr>::extract<Options...>::value;
+		static constexpr const char* RFC2069_A1 = HttpConfig::AuthPasswdHash<nullptr>::extract<Options...>::value;
+		static constexpr const bool ok = username && realm && RFC2069_A1;
+	};
+
 	typedef void (*HeaderFieldParser)(HttpLogic*, const char*, uint32_t);
 	typedef Keywords<HeaderFieldParser, 4> HeaderKeywords;
-	typedef DavRequestParser<Resources::davStackSize> DavReqParser;
+	typedef DavRequestParser<davStackSize> DavReqParser;
 
 	static const HeaderKeywords headerKeywords;
 
@@ -107,7 +136,7 @@ private:
 
 		// Only used for auth field processing, the result is copied into
 		// authState property immediately in the afterHeaderValue method
-		AuthDigest<Resources> authFieldValidator;
+		AuthDigest<AuthParams> authFieldValidator;
 
 		// Only used for the overwrite field processing, the result is copied
 		// into overwrite property immediately in the afterHeaderValue method
@@ -216,8 +245,8 @@ public:
 	static inline bool isError(HttpStatus);
 };
 
-template<class Provider, class Resources>
-inline void HttpLogic<Provider, Resources>::
+template<class Provider, class... Options>
+inline void HttpLogic<Provider, Options...>::
 newRequest()
 {
 	HttpRequestParser<HttpLogic>::newRequest();
@@ -228,16 +257,16 @@ newRequest()
 	depth = Depth::Traverse;
 }
 
-template<class Provider, class Resources>
-inline void HttpLogic<Provider, Resources>::
+template<class Provider, class... Options>
+inline void HttpLogic<Provider, Options...>::
 reset()
 {
 	HttpRequestParser<HttpLogic>::reset();
 	newRequest();
 }
 
-template<class Provider, class Resources>
-inline void HttpLogic<Provider, Resources>::
+template<class Provider, class... Options>
+inline void HttpLogic<Provider, Options...>::
 done()
 {
 	if(HttpRequestParser<HttpLogic>::done())
@@ -245,8 +274,8 @@ done()
 			status = HTTP_STATUS_BAD_REQUEST;
 }
 
-template<class Provider, class Resources>
-inline void HttpLogic<Provider, Resources>::
+template<class Provider, class... Options>
+inline void HttpLogic<Provider, Options...>::
 parse(const char *at, size_t length)
 {
 	if((size_t)HttpRequestParser<HttpLogic>::parse(at, length) != length)
@@ -254,8 +283,8 @@ parse(const char *at, size_t length)
 			status = HTTP_STATUS_BAD_REQUEST;
 }
 
-template<class Provider, class Resources>
-inline void HttpLogic<Provider, Resources>::
+template<class Provider, class... Options>
+inline void HttpLogic<Provider, Options...>::
 startChunk(uint32_t size)
 {
 	char temp[8];
@@ -264,8 +293,8 @@ startChunk(uint32_t size)
 	((Provider*)this)->send(crLf, strlen(crLf));
 }
 
-template<class Provider, class Resources>
-inline void HttpLogic<Provider, Resources>::
+template<class Provider, class... Options>
+inline void HttpLogic<Provider, Options...>::
 sendChunk(const char* str, uint32_t length)
 {
 	if(length) {
@@ -275,15 +304,15 @@ sendChunk(const char* str, uint32_t length)
 	}
 }
 
-template<class Provider, class Resources>
-inline void HttpLogic<Provider, Resources>::
+template<class Provider, class... Options>
+inline void HttpLogic<Provider, Options...>::
 sendChunk(const char* str)
 {
 	sendChunk(str, strlen(str));
 }
 
-template<class Provider, class Resources>
-inline void HttpLogic<Provider, Resources>::
+template<class Provider, class... Options>
+inline void HttpLogic<Provider, Options...>::
 sendPropStart(const DavProperty* prop)
 {
 	constexpr const char *preName = "<";
@@ -305,8 +334,8 @@ sendPropStart(const DavProperty* prop)
 	finishChunk();
 }
 
-template<class Provider, class Resources>
-inline void HttpLogic<Provider, Resources>::
+template<class Provider, class... Options>
+inline void HttpLogic<Provider, Options...>::
 sendPropEnd(const DavProperty* prop)
 {
 	constexpr const char *preClose = "</";
@@ -323,16 +352,16 @@ sendPropEnd(const DavProperty* prop)
 	finishChunk();
 }
 
-template<class Provider, class Resources>
-void HttpLogic<Provider, Resources>::
+template<class Provider, class... Options>
+void HttpLogic<Provider, Options...>::
 finishChunk()
 {
 	((Provider*)this)->send(crLf, strlen(crLf));
 }
 
 
-template<class Provider, class Resources>
-void HttpLogic<Provider, Resources>::
+template<class Provider, class... Options>
+void HttpLogic<Provider, Options...>::
 parseDepth(HttpLogic* self, const char* buff, uint32_t length)
 {
 	constexpr const char* trueStr = "T";
@@ -350,8 +379,8 @@ parseDepth(HttpLogic* self, const char* buff, uint32_t length)
 		self->depthMatcher.progress(depthKeywords, buff, length);
 }
 
-template<class Provider, class Resources>
-void HttpLogic<Provider, Resources>::
+template<class Provider, class... Options>
+void HttpLogic<Provider, Options...>::
 parseOverwrite(HttpLogic* self, const char* buff, uint32_t length)
 {
 	static constexpr const char* trueStr = "T";
@@ -364,8 +393,8 @@ parseOverwrite(HttpLogic* self, const char* buff, uint32_t length)
 		self->cstrMatcher.progressWithMatching(trueStr, buff, length);
 }
 
-template<class Provider, class Resources>
-void HttpLogic<Provider, Resources>::
+template<class Provider, class... Options>
+void HttpLogic<Provider, Options...>::
 parseAuthorization(HttpLogic* self, const char* buff, uint32_t length)
 {
 	if(!buff) {
@@ -383,8 +412,8 @@ parseAuthorization(HttpLogic* self, const char* buff, uint32_t length)
 		self->authFieldValidator.parseAuthField(buff, length);
 }
 
-template<class Provider, class Resources>
-void HttpLogic<Provider, Resources>::
+template<class Provider, class... Options>
+void HttpLogic<Provider, Options...>::
 parseDestination(HttpLogic* self, const char* buff, uint32_t length)
 {
 	if(!buff) {
@@ -402,15 +431,15 @@ parseDestination(HttpLogic* self, const char* buff, uint32_t length)
 }
 
 
-template<class Provider, class Resources>
-inline void HttpLogic<Provider, Resources>::
+template<class Provider, class... Options>
+inline void HttpLogic<Provider, Options...>::
 parseElement(const char *at, size_t length)
 {
 	tempString.save(at, length);
 }
 
-template<class Provider, class Resources>
-inline void HttpLogic<Provider, Resources>::
+template<class Provider, class... Options>
+inline void HttpLogic<Provider, Options...>::
 beforeElement() {
 	if(!parseSource	&& tempString.length())
 		((Provider*)this)->enterDestination(tempString.data(), tempString.length());
@@ -418,35 +447,35 @@ beforeElement() {
 	tempString.clear();
 }
 
-template<class Provider, class Resources>
-inline void HttpLogic<Provider, Resources>::
+template<class Provider, class... Options>
+inline void HttpLogic<Provider, Options...>::
 elementDone() {
 	if(parseSource)
 		status = ((Provider*)this)->enterSource(tempString.data(), tempString.length());
 }
 
-template<class Provider, class Resources>
-inline int HttpLogic<Provider, Resources>::
+template<class Provider, class... Options>
+inline int HttpLogic<Provider, Options...>::
 onPath(const char *at, size_t length)
 {
 	PathParser<HttpLogic>::parsePath(at, length);
 	return 0;
 }
 
-template<class Provider, class Resources>
-inline void HttpLogic<Provider, Resources>::
+template<class Provider, class... Options>
+inline void HttpLogic<Provider, Options...>::
 pathDone() {
 	PathParser<HttpLogic>::done();
 }
 
-template<class Provider, class Resources>
-inline void HttpLogic<Provider, Resources>::beforeRequest()
+template<class Provider, class... Options>
+inline void HttpLogic<Provider, Options...>::beforeRequest()
 {
 	tempString.clear();
 }
 
-template<class Provider, class Resources>
-inline void HttpLogic<Provider, Resources>::beforeUrl() {
+template<class Provider, class... Options>
+inline void HttpLogic<Provider, Options...>::beforeUrl() {
 	this->UrlParser<HttpLogic>::reset();
 	this->PathParser<HttpLogic>::reset();
 
@@ -467,44 +496,44 @@ inline void HttpLogic<Provider, Resources>::beforeUrl() {
 		((Provider*)this)->resetDestinationLocator();
 }
 
-template<class Provider, class Resources>
-inline int HttpLogic<Provider, Resources>::onUrl(const char *at, size_t length) {
+template<class Provider, class... Options>
+inline int HttpLogic<Provider, Options...>::onUrl(const char *at, size_t length) {
 	this->UrlParser<HttpLogic>::parseUrl(at, length);
 	return 0;
 }
 
-template<class Provider, class Resources>
-inline void HttpLogic<Provider, Resources>::afterUrl() {
+template<class Provider, class... Options>
+inline void HttpLogic<Provider, Options...>::afterUrl() {
 	this->UrlParser<HttpLogic>::done();
 }
 
-template<class Provider, class Resources>
-inline void HttpLogic<Provider, Resources>::beforeHeaderName() {
+template<class Provider, class... Options>
+inline void HttpLogic<Provider, Options...>::beforeHeaderName() {
 	headerNameMatcher.reset();
 }
 
-template<class Provider, class Resources>
-inline int HttpLogic<Provider, Resources>::onHeaderName(const char *at, size_t length) {
+template<class Provider, class... Options>
+inline int HttpLogic<Provider, Options...>::onHeaderName(const char *at, size_t length) {
 	headerNameMatcher.progress(headerKeywords, at, length);
 	return 0;
 }
 
-template<class Provider, class Resources>
-inline void HttpLogic<Provider, Resources>::afterHeaderName()
+template<class Provider, class... Options>
+inline void HttpLogic<Provider, Options...>::afterHeaderName()
 {
 	const typename HeaderKeywords::Keyword* kw = headerNameMatcher.match(headerKeywords);
 	fieldParser = kw ? kw->getValue() : nullptr;
 }
 
-template<class Provider, class Resources>
-inline void HttpLogic<Provider, Resources>::beforeHeaderValue()
+template<class Provider, class... Options>
+inline void HttpLogic<Provider, Options...>::beforeHeaderValue()
 {
 	if(fieldParser)
 		fieldParser(this, 0, -1u);
 }
 
-template<class Provider, class Resources>
-inline int HttpLogic<Provider, Resources>::onHeaderValue(const char *at, size_t length)
+template<class Provider, class... Options>
+inline int HttpLogic<Provider, Options...>::onHeaderValue(const char *at, size_t length)
 {
 	if(fieldParser)
 		fieldParser(this, at, length);
@@ -512,15 +541,15 @@ inline int HttpLogic<Provider, Resources>::onHeaderValue(const char *at, size_t 
 	return 0;
 }
 
-template<class Provider, class Resources>
-inline void HttpLogic<Provider, Resources>::afterHeaderValue()
+template<class Provider, class... Options>
+inline void HttpLogic<Provider, Options...>::afterHeaderValue()
 {
 	if(fieldParser)
 		fieldParser(this, 0, 0);
 }
 
-template<class Provider, class Resources>
-inline void HttpLogic<Provider, Resources>::afterHeaders()
+template<class Provider, class... Options>
+inline void HttpLogic<Provider, Options...>::afterHeaders()
 {
 	if(authState != AuthStatus::Failed && !isError(status)) {
 		switch(HttpRequestParser<HttpLogic>::getMethod()) {
@@ -536,14 +565,14 @@ inline void HttpLogic<Provider, Resources>::afterHeaders()
 	}
 }
 
-template<class Provider, class Resources>
-inline void HttpLogic<Provider, Resources>::beforeBody() {}
+template<class Provider, class... Options>
+inline void HttpLogic<Provider, Options...>::beforeBody() {}
 
-template<class Provider, class Resources>
-inline void HttpLogic<Provider, Resources>::afterBody() {}
+template<class Provider, class... Options>
+inline void HttpLogic<Provider, Options...>::afterBody() {}
 
-template<class Provider, class Resources>
-inline int HttpLogic<Provider, Resources>::onBody(const char *at, size_t length) {
+template<class Provider, class... Options>
+inline int HttpLogic<Provider, Options...>::onBody(const char *at, size_t length) {
 	if(authState != AuthStatus::Failed && !isError(status)) {
 		switch(HttpRequestParser<HttpLogic>::getMethod()) {
 			case HttpRequestParser<HttpLogic>::Method::HTTP_PUT:
@@ -561,8 +590,8 @@ inline int HttpLogic<Provider, Resources>::onBody(const char *at, size_t length)
 	return 0;
 }
 
-template<class Provider, class Resources>
-inline void HttpLogic<Provider, Resources>::beginHeaders() {
+template<class Provider, class... Options>
+inline void HttpLogic<Provider, Options...>::beginHeaders() {
 	const char *statusLine = getStatusLine(status);
 	((Provider*)this)->send(statusLine, strlen(statusLine));
 	if(!isError(status)) {
@@ -573,8 +602,8 @@ inline void HttpLogic<Provider, Resources>::beginHeaders() {
 	}
 }
 
-template<class Provider, class Resources>
-inline bool HttpLogic<Provider, Resources>::generatePropfindResponse(bool file, typename DavReqParser::Type type) {
+template<class Provider, class... Options>
+inline bool HttpLogic<Provider, Options...>::generatePropfindResponse(bool file, typename DavReqParser::Type type) {
 	bool error = false;
 	while(!error) {
 		sendChunk(xmlFileHeader);
@@ -590,8 +619,8 @@ inline bool HttpLogic<Provider, Resources>::generatePropfindResponse(bool file, 
 
 		switch(type) {
 			case DavReqParser::Type::Allprop:
-				for(unsigned int i=0; i<sizeof(Resources::davProperties)/sizeof(Resources::davProperties[0]); i++) {
-					auto prop = Resources::davProperties + i;
+				for(unsigned int i=0; i<DavProps::count; i++) {
+					auto prop = DavProps::properties + i;
 					sendPropStart(prop);
 
 					HttpStatus ret = file ?
@@ -607,8 +636,8 @@ inline bool HttpLogic<Provider, Resources>::generatePropfindResponse(bool file, 
 				sendChunk(xmlFileKnownPropTrailer);
 				break;
 			case DavReqParser::Type::Propname:
-				for(unsigned int i=0; i<sizeof(Resources::davProperties)/sizeof(Resources::davProperties[0]); i++) {
-					auto prop = Resources::davProperties + i;
+				for(unsigned int i=0; i<DavProps::count; i++) {
+					auto prop = DavProps::properties + i;
 					sendPropStart(prop);
 					sendPropEnd(prop);
 				}
@@ -619,8 +648,8 @@ inline bool HttpLogic<Provider, Resources>::generatePropfindResponse(bool file, 
 				 * Generate response entries for known properties
 				 */
 				for(auto it = davReqParser.propertyIterator(); it.isValid(); davReqParser.step(it)) {
-					for(unsigned int i=0; i<sizeof(Resources::davProperties)/sizeof(Resources::davProperties[0]); i++) {
-						auto prop = Resources::davProperties + i;
+					for(unsigned int i=0; i<DavProps::count; i++) {
+						auto prop = DavProps::properties + i;
 						const char* str;
 						uint32_t len;
 
@@ -664,8 +693,8 @@ inline bool HttpLogic<Provider, Resources>::generatePropfindResponse(bool file, 
 					it.getName(name, nameLen);
 					it.getNs(ns, nsLen);
 
-					for(unsigned int i=0; i<sizeof(Resources::davProperties)/sizeof(Resources::davProperties[0]); i++) {
-						auto prop = Resources::davProperties + i;
+					for(unsigned int i=0; i<DavProps::count; i++) {
+						auto prop = DavProps::properties + i;
 						if(strlen(prop->name) == nameLen && strncmp(prop->name, name, nameLen) == 0) {
 							if(strlen(prop->xmlns) == nsLen && strncmp(prop->xmlns, ns, nsLen) == 0) {
 								found = true;
@@ -715,8 +744,8 @@ inline bool HttpLogic<Provider, Resources>::generatePropfindResponse(bool file, 
 }
 
 
-template<class Provider, class Resources>
-inline void HttpLogic<Provider, Resources>::afterRequest() {
+template<class Provider, class... Options>
+inline void HttpLogic<Provider, Options...>::afterRequest() {
 	uint32_t length;
 
 	DavAccess access = ((Provider*)this)->sourceAccessible(authState == AuthStatus::Ok);
@@ -888,23 +917,23 @@ inline void HttpLogic<Provider, Resources>::afterRequest() {
 	newRequest();
 }
 
-template<class Provider, class Resources>
-inline HttpStatus HttpLogic<Provider, Resources>::getStatus()
+template<class Provider, class... Options>
+inline HttpStatus HttpLogic<Provider, Options...>::getStatus()
 {
 	return status;
 }
 
-template<class Provider, class Resources>
-typename HttpLogic<Provider, Resources>::AuthStatus
-inline HttpLogic<Provider, Resources>::getAuthStatus()
+template<class Provider, class... Options>
+typename HttpLogic<Provider, Options...>::AuthStatus
+inline HttpLogic<Provider, Options...>::getAuthStatus()
 {
 	return authState;
 }
 
 #define XX(num, name, string) case HTTP_STATUS_##name: return "HTTP/1.1 " #num " " #string "\r\n";
 
-template<class Provider, class Resources>
-inline const char* HttpLogic<Provider, Resources>::getStatusLine(HttpStatus status)
+template<class Provider, class... Options>
+inline const char* HttpLogic<Provider, Options...>::getStatusLine(HttpStatus status)
 {
 	switch(status) {
 		HTTP_STATUS_MAP(XX)
@@ -915,28 +944,27 @@ inline const char* HttpLogic<Provider, Resources>::getStatusLine(HttpStatus stat
 
 #undef XX
 
-template<class Provider, class Resources>
-inline bool HttpLogic<Provider, Resources>::isError(HttpStatus status)
+template<class Provider, class... Options>
+inline bool HttpLogic<Provider, Options...>::isError(HttpStatus status)
 {
 	return status >= 400;
 }
 
-template<class Provider, class Resources>
-const typename HttpLogic<Provider, Resources>::HeaderKeywords
-HttpLogic<Provider, Resources>::headerKeywords({
-	typename HeaderKeywords::Keyword("Depth", &HttpLogic<Provider, Resources>::parseDepth),
-	typename HeaderKeywords::Keyword("Overwrite", &HttpLogic<Provider, Resources>::parseOverwrite),
-	typename HeaderKeywords::Keyword("Destination", &HttpLogic<Provider, Resources>::parseDestination),
-	typename HeaderKeywords::Keyword("Authorization", &HttpLogic<Provider, Resources>::parseAuthorization),
+template<class Provider, class... Options>
+const typename HttpLogic<Provider, Options...>::HeaderKeywords
+HttpLogic<Provider, Options...>::headerKeywords({
+	typename HeaderKeywords::Keyword("Depth", &HttpLogic<Provider, Options...>::parseDepth),
+	typename HeaderKeywords::Keyword("Overwrite", &HttpLogic<Provider, Options...>::parseOverwrite),
+	typename HeaderKeywords::Keyword("Destination", &HttpLogic<Provider, Options...>::parseDestination),
+	typename HeaderKeywords::Keyword("Authorization", &HttpLogic<Provider, Options...>::parseAuthorization),
 });
 
-template<class Provider, class Resources>
-const typename HttpLogic<Provider, Resources>::DepthKeywords
-HttpLogic<Provider, Resources>::depthKeywords({
-	typename DepthKeywords::Keyword("0", HttpLogic<Provider, Resources>::Depth::File),
-	typename DepthKeywords::Keyword("1", HttpLogic<Provider, Resources>::Depth::Directory),
-	typename DepthKeywords::Keyword("infinity", HttpLogic<Provider, Resources>::Depth::Traverse),
+template<class Provider, class... Options>
+const typename HttpLogic<Provider, Options...>::DepthKeywords
+HttpLogic<Provider, Options...>::depthKeywords({
+	typename DepthKeywords::Keyword("0", HttpLogic<Provider, Options...>::Depth::File),
+	typename DepthKeywords::Keyword("1", HttpLogic<Provider, Options...>::Depth::Directory),
+	typename DepthKeywords::Keyword("infinity", HttpLogic<Provider, Options...>::Depth::Traverse),
 });
-
 
 #endif /* HTTPLOGIC_H_ */
