@@ -31,10 +31,6 @@
 #define DEFAULT_PORT "27015"
 
 struct Types {
-	struct ResourceLocator {};
-	typedef ResourceLocator SourceLocator;
-	typedef ResourceLocator DestinationLocator;
-
 	static constexpr const uint32_t davStackSize = 192;
 	static constexpr const char* username = "foo";
 	static constexpr const char* realm = "bar";
@@ -47,7 +43,6 @@ constexpr const DavProperty Types::davProperties[1];
 class HttpSession: protected HttpLogic<HttpSession, Types>
 {
 	friend HttpLogic<HttpSession, Types>;
-	using ResourceLocator = Types::ResourceLocator;
 	SOCKET& socket;
 
     bool silenced = false, stunned = false, disarmed = false, hexed = false, muted = false;
@@ -76,18 +71,18 @@ class HttpSession: protected HttpLogic<HttpSession, Types>
 
 	void flush() {}
 
-	inline HttpStatus arrangeReceiveInto(ResourceLocator* rl, const char* dstName, uint32_t length) {
+	inline HttpStatus arrangeReceiveInto(const char* dstName, uint32_t length) {
 		jsonParser.reset(&rootFilter);
 		return HTTP_STATUS_OK;
 	}
 
-	inline HttpStatus writeContent(ResourceLocator* rl, const char* buff, uint32_t length)
+	inline HttpStatus writeContent(const char* buff, uint32_t length)
 	{
 		jsonParser.parse(buff, length);
 		return HTTP_STATUS_OK;
 	}
 
-	inline HttpStatus contentWritten(ResourceLocator* rl) {
+	inline HttpStatus contentWritten() {
 		if(jsonParser.done()) {
 			std::cout << "silenced: " << silenced << ", ";
 			std::cout << "stunned: " << stunned << ", ";

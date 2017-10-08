@@ -25,10 +25,6 @@
 
 namespace {
 	struct Types {
-		struct ResourceLocator {
-			uint32_t n;
-		};
-
 		static constexpr const uint32_t davStackSize = 192;
 		static constexpr const char* username = "foo";
 		static constexpr const char* realm = "bar";
@@ -39,8 +35,6 @@ namespace {
 			DavProperty("foo://bar", "otherprop")
 		};
 
-		typedef ResourceLocator SourceLocator;
-		typedef ResourceLocator DestinationLocator;
 	};
 
 	constexpr const DavProperty Types::davProperties[2];
@@ -49,7 +43,8 @@ namespace {
 TEST_GROUP(HttpLogicOutput) {
 
 	struct Uut: public HttpLogic<Uut, Types> {
-		using ResourceLocator = Types::ResourceLocator;
+		uint32_t n;
+
 		std::string response;
 
 		void send(const char* str, unsigned int length) {
@@ -58,41 +53,40 @@ TEST_GROUP(HttpLogicOutput) {
 
 		void flush() {}
 
-		DavAccess accessible(ResourceLocator* rl, bool authenticated)
-		{
-			return DavAccess::Dav;
-		}
+		DavAccess sourceAccessible(bool authenticated) { return DavAccess::Dav; }
 
-		void resetLocator(ResourceLocator* rl) {}
-		HttpStatus enter(ResourceLocator* rl, const char* str, unsigned int length) {return HTTP_STATUS_OK;}
+		void resetSourceLocator() {}
+		void resetDestinationLocator() {}
+		HttpStatus enterSource(const char* str, unsigned int length) {return HTTP_STATUS_OK;}
+		HttpStatus enterDestination(const char* str, unsigned int length) {return HTTP_STATUS_OK;}
 
-		HttpStatus createDirectory(ResourceLocator* rl, const char* dstName, uint32_t length) {
+		HttpStatus createDirectory(const char* dstName, uint32_t length) {
 			return HTTP_STATUS_CREATED;
 		}
 
-		HttpStatus remove(ResourceLocator* rl, const char* dstName, uint32_t length) {
+		HttpStatus remove(const char* dstName, uint32_t length) {
 			return HTTP_STATUS_NO_CONTENT;
 		}
 
-		HttpStatus copy(ResourceLocator* src, ResourceLocator* dstDir, const char* dstName, uint32_t length, bool overwrite) {
+		HttpStatus copy(const char* dstName, uint32_t length, bool overwrite) {
 			return HTTP_STATUS_CREATED;
 		}
 
-		HttpStatus move(ResourceLocator* src, ResourceLocator* dstDir, const char* dstName, uint32_t length, bool overwrite) {
+		HttpStatus move(const char* dstName, uint32_t length, bool overwrite) {
 			return HTTP_STATUS_CREATED;
 		}
 
 		// Upload
 
-		HttpStatus arrangeReceiveInto(ResourceLocator* rl, const char* dstName, uint32_t length) {
+		HttpStatus arrangeReceiveInto(const char* dstName, uint32_t length) {
 			return HTTP_STATUS_OK;
 		}
 
-		HttpStatus writeContent(ResourceLocator* rl, const char* buff, uint32_t length) {
+		HttpStatus writeContent(const char* buff, uint32_t length) {
 			return HTTP_STATUS_OK;
 		}
 
-		HttpStatus contentWritten(ResourceLocator* rl) {
+		HttpStatus contentWritten() {
 			return HTTP_STATUS_CREATED;
 		}
 
@@ -100,41 +94,41 @@ TEST_GROUP(HttpLogicOutput) {
 
 		static constexpr const char* data = "TestContent";
 
-		HttpStatus arrangeSendFrom(ResourceLocator* rl, uint32_t &size) {
+		HttpStatus arrangeSendFrom(uint32_t &size) {
 			size = strlen(data);
 			return HTTP_STATUS_OK;
 		}
 
-		HttpStatus readContent(ResourceLocator* rl) {
+		HttpStatus readContent() {
 			send(data, strlen(data));
 			return HTTP_STATUS_OK;
 		}
 
-		HttpStatus contentRead(ResourceLocator* rl) {
+		HttpStatus contentRead() {
 			return HTTP_STATUS_OK;
 		}
 
 		// Listing
 
-		HttpStatus arrangeDirectoryListing(ResourceLocator* rl) {
-			rl->n = 0;
+		HttpStatus arrangeDirectoryListing() {
+			n = 0;
 			return HTTP_STATUS_MULTI_STATUS;
 		}
 
-		HttpStatus arrangeFileListing(ResourceLocator* rl) {
-			rl->n = 0;
+		HttpStatus arrangeFileListing() {
+			n = 0;
 			return HTTP_STATUS_MULTI_STATUS;
 		}
 
-		HttpStatus generateListing(ResourceLocator* rl, const DavProperty* prop)
+		HttpStatus generateListing(const DavProperty* prop)
 		{
-			if(rl->n == 0 && !prop)
+			if(n == 0 && !prop)
 				sendChunk("foo");
-			else if(rl->n == 0 && (prop == Types::davProperties + 0))
+			else if(n == 0 && (prop == Types::davProperties + 0))
 				sendChunk("1");
-			else if(rl->n == 1 && !prop)
+			else if(n == 1 && !prop)
 				sendChunk("bar");
-			else if(rl->n == 1 && (prop == Types::davProperties + 0))
+			else if(n == 1 && (prop == Types::davProperties + 0))
 				sendChunk("2");
 			else if(prop == Types::davProperties + 1)
 				sendChunk("awsome");
@@ -142,30 +136,30 @@ TEST_GROUP(HttpLogicOutput) {
 			return HTTP_STATUS_OK;
 		}
 
-		HttpStatus generateFileListing(ResourceLocator* rl, const DavProperty* prop) {
-			return generateListing(rl, prop);
+		HttpStatus generateFileListing(const DavProperty* prop) {
+			return generateListing(prop);
 		}
 
-		HttpStatus generateDirectoryListing(ResourceLocator* rl, const DavProperty* prop)
+		HttpStatus generateDirectoryListing(const DavProperty* prop)
 		{
-			return generateListing(rl, prop);
+			return generateListing(prop);
 		}
 
 
-		bool stepListing(ResourceLocator* rl) {
-			if(rl->n != 1) {
-				rl->n++;
+		bool stepListing() {
+			if(n != 1) {
+				n++;
 				return true;
 			} else {
 				return false;
 			}
 		}
 
-		HttpStatus fileListingDone(ResourceLocator* rl) {
+		HttpStatus fileListingDone() {
 			return HTTP_STATUS_MULTI_STATUS;
 		}
 
-		HttpStatus directoryListingDone(ResourceLocator* rl) {
+		HttpStatus directoryListingDone() {
 			return HTTP_STATUS_MULTI_STATUS;
 		}
 

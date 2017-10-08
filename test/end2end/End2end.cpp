@@ -40,6 +40,25 @@ int davRoot;
 char* davRootName;
 
 struct Types {
+	static constexpr const uint32_t davStackSize = 192;
+	static constexpr const char* username = "foo";
+	static constexpr const char* realm = "bar";
+	static constexpr const char* RFC2069_A1 = "d65f52b42a2605dd84ef29a88bd75e1d";
+
+	static constexpr const DavProperty davProperties[3] = {
+		DavProperty("DAV:", "getcontentlength"),
+		DavProperty("DAV:", "getlastmodified"),
+		DavProperty("DAV:", "resourcetype")
+	};
+};
+
+constexpr const DavProperty Types::davProperties[3];
+
+class HttpSession: protected HttpLogic<HttpSession, Types>
+{
+	friend HttpLogic<HttpSession, Types>;
+	int sockFd;
+
 	struct ResourceLocator {
 		int fd;
 		DIR *dir;
@@ -58,30 +77,7 @@ struct Types {
 
 			return true;
 		}
-	};
-
-	static constexpr const uint32_t davStackSize = 192;
-	static constexpr const char* username = "foo";
-	static constexpr const char* realm = "bar";
-	static constexpr const char* RFC2069_A1 = "d65f52b42a2605dd84ef29a88bd75e1d";
-
-	static constexpr const DavProperty davProperties[3] = {
-		DavProperty("DAV:", "getcontentlength"),
-		DavProperty("DAV:", "getlastmodified"),
-		DavProperty("DAV:", "resourcetype")
-	};
-
-	typedef ResourceLocator SourceLocator;
-	typedef ResourceLocator DestinationLocator;
-};
-
-constexpr const DavProperty Types::davProperties[3];
-
-class HttpSession: protected HttpLogic<HttpSession, Types>
-{
-	friend HttpLogic<HttpSession, Types>;
-	using ResourceLocator = Types::ResourceLocator;
-	int sockFd;
+	} src, dst;
 
 	void send(const char* str, unsigned int length)
 	{
@@ -89,10 +85,9 @@ class HttpSession: protected HttpLogic<HttpSession, Types>
 			std::cerr << "Unable to write client socket " << strerror(errno) << std::endl;
 	}
 
-	DavAccess accessible(ResourceLocator* rl, bool authenticated)
-	{
-		return DavAccess::Dav;
-	}
+	void flush() {}
+
+	DavAccess sourceAccessible(bool authenticated) { return DavAccess::Dav; }
 
 	void resetLocator(ResourceLocator* rl)
 	{
@@ -100,6 +95,9 @@ class HttpSession: protected HttpLogic<HttpSession, Types>
 		rl->fd = dup(davRoot);
 		std::cout << "reset " << davRoot << " -> " << rl->fd << std::endl;
 	}
+
+	HttpStatus resetSourceLocator() {resetLocator(&src);}
+	HttpStatus resetDestinationLocator() {resetLocator(&dst);}
 
 	HttpStatus enter(ResourceLocator* rl, const char* str, unsigned int length)
 	{
@@ -117,15 +115,18 @@ class HttpSession: protected HttpLogic<HttpSession, Types>
 		return HTTP_STATUS_OK;
 	}
 
-	HttpStatus remove(ResourceLocator* rl, const char* dstName, uint32_t length)
+	HttpStatus enterSource( const char* str, unsigned int length) {return enter(&src, str, length);}
+	HttpStatus enterDestination( const char* str, unsigned int length) {return enter(&dst, str, length);}
+
+	HttpStatus remove(const char* dstName, uint32_t length)
 	{
-		HttpStatus status = enter(rl, dstName, length);
+		HttpStatus status = enter(&dst, dstName, length);
 		if(status != HTTP_STATUS_OK)
 			return status;
 
-		rl->fetchName();
-		close(rl->fd);
-		if(::remove(rl->name) < 0) {
+		dst.fetchName();
+		close(dst.fd);
+		if(::remove(dst.name) < 0) {
 			std::cerr << "Unable to remove: " << strerror(errno) << std::endl;
 			return HTTP_STATUS_FORBIDDEN;
 		}
@@ -133,78 +134,78 @@ class HttpSession: protected HttpLogic<HttpSession, Types>
 		return HTTP_STATUS_CREATED;
 	}
 
-	HttpStatus createDirectory(ResourceLocator* rl, const char* dstName, uint32_t length)
+	HttpStatus createDirectory(const char* dstName, uint32_t length)
 	{
 		std::string name(dstName, length);
 
-		if(mkdirat(rl->fd, name.c_str(), 0777) < 0) {
+		if(mkdirat(dst.fd, name.c_str(), 0777) < 0) {
 			std::cerr << "Unable to mkdir: " << strerror(errno) << std::endl;
-			close(rl->fd);
+			close(dst.fd);
 			return HTTP_STATUS_FORBIDDEN;
 		}
 
-		close(rl->fd);
+		close(dst.fd);
 		return HTTP_STATUS_NO_CONTENT;
 	}
 
-	HttpStatus copy(ResourceLocator* src, ResourceLocator* dstDir, const char* dstName, uint32_t length, bool overwrite)
+	HttpStatus copy(const char* dstName, uint32_t length, bool overwrite)
 	{
 		std::string name(dstName, length);
-		int oldfd = dstDir->fd;
+		int oldfd = dst.fd;
 
-		dstDir->fd = openat(dstDir->fd, name.c_str(), O_WRONLY | O_CREAT | O_TRUNC, 0666);
+		dst.fd = openat(dst.fd, name.c_str(), O_WRONLY | O_CREAT | O_TRUNC, 0666);
 		close(oldfd);
 
-		if(dstDir->fd < 0) {
+		if(dst.fd < 0) {
 			std::cerr << "Unable to open file for copy: " << name << strerror(errno) << std::endl;
-			close(src->fd);
+			close(src.fd);
 			return HTTP_STATUS_FORBIDDEN;
 		}
 
-		if(fstat(src->fd, &src->st) < 0) {
+		if(fstat(src.fd, &src.st) < 0) {
 			std::cerr << "Could not stat source for copy: " << strerror(errno) << std::endl;
-			close(src->fd);
-			close(dstDir->fd);
+			close(src.fd);
+			close(dst.fd);
 			return HTTP_STATUS_FORBIDDEN;
 		}
 
-		if(sendfile(dstDir->fd, src->fd, nullptr, src->st.st_size) < 0) {
+		if(sendfile(dst.fd, src.fd, nullptr, src.st.st_size) < 0) {
 			std::cerr << "Unable to sendfile for copy " << strerror(errno) << std::endl;
-			close(src->fd);
-			close(dstDir->fd);
+			close(src.fd);
+			close(dst.fd);
 			return HTTP_STATUS_FORBIDDEN;
 		}
 
-		close(src->fd);
-		close(dstDir->fd);
+		close(src.fd);
+		close(dst.fd);
 		return HTTP_STATUS_CREATED;
 	}
 
-	HttpStatus move(ResourceLocator* src, ResourceLocator* dstDir, const char* dstName, uint32_t length, bool overwrite)
+	HttpStatus move(const char* dstName, uint32_t length, bool overwrite)
 	{
 		std::string name(dstName, length);
-		src->fetchName();
-		close(src->fd);
+		src.fetchName();
+		close(src.fd);
 
-		if(renameat(0, src->name, dstDir->fd, name.c_str())) {
+		if(renameat(0, src.name, dst.fd, name.c_str())) {
 			std::cerr << "Unable to renameat for move " << strerror(errno) << std::endl;
-			close(dstDir->fd);
+			close(dst.fd);
 			return HTTP_STATUS_FORBIDDEN;
 		}
 
-		close(dstDir->fd);
+		close(dst.fd);
 		return HTTP_STATUS_CREATED;
 	}
 
-	HttpStatus arrangeReceiveInto(ResourceLocator* rl, const char* dstName, uint32_t length)
+	HttpStatus arrangeReceiveInto(const char* dstName, uint32_t length)
 	{
 		std::string name(dstName, length);
-		int oldfd = rl->fd;
+		int oldfd = dst.fd;
 
-		rl->fd = openat(rl->fd, name.c_str(), O_WRONLY | O_CREAT | O_TRUNC, 0666);
+		dst.fd = openat(dst.fd, name.c_str(), O_WRONLY | O_CREAT | O_TRUNC, 0666);
 		close(oldfd);
 
-		if(rl->fd < 0) {
+		if(dst.fd < 0) {
 			std::cerr << "Unable to open file for upload: " << name << strerror(errno) << std::endl;
 			return HTTP_STATUS_FORBIDDEN;
 		}
@@ -212,96 +213,96 @@ class HttpSession: protected HttpLogic<HttpSession, Types>
 		return HTTP_STATUS_OK;
 	}
 
-	HttpStatus writeContent(ResourceLocator* rl, const char* buff, uint32_t length)
+	HttpStatus writeContent(const char* buff, uint32_t length)
 	{
-		if(write(rl->fd, buff, length) < 0) {
+		if(write(dst.fd, buff, length) < 0) {
 			std::cerr << "Unable to write out received data " << strerror(errno) << std::endl;
-			close(rl->fd);
+			close(dst.fd);
 			return HTTP_STATUS_FORBIDDEN;
 		}
 
 		return HTTP_STATUS_OK;
 	}
 
-	HttpStatus contentWritten(ResourceLocator* rl)
+	HttpStatus contentWritten()
 	{
-		close(rl->fd);
+		close(dst.fd);
 		return HTTP_STATUS_CREATED;
 	}
 
-	HttpStatus arrangeSendFrom(ResourceLocator* rl, uint32_t &size)
+	HttpStatus arrangeSendFrom(uint32_t &size)
 	{
-		if(fstat(rl->fd, &rl->st) < 0) {
+		if(fstat(src.fd, &src.st) < 0) {
 			std::cerr << "Unable to fstat file for download " << strerror(errno) << std::endl;
-			close(rl->fd);
+			close(src.fd);
 			return HTTP_STATUS_FORBIDDEN;
 		}
 
-		size = rl->st.st_size;
+		size = src.st.st_size;
 
 		return HTTP_STATUS_OK;
 	}
 
-	HttpStatus readContent(ResourceLocator* rl)
+	HttpStatus readContent()
 	{
-		if(sendfile(sockFd, rl->fd, nullptr, rl->st.st_size) < 0) {
+		if(sendfile(sockFd, src.fd, nullptr, src.st.st_size) < 0) {
 			std::cerr << "Unable to sendfile " << strerror(errno) << std::endl;
-			close(rl->fd);
+			close(src.fd);
 			return HTTP_STATUS_FORBIDDEN;
 		}
 
 		return HTTP_STATUS_OK;
 	}
 
-	HttpStatus contentRead(ResourceLocator* rl)
+	HttpStatus contentRead()
 	{
-		close(rl->fd);
+		close(src.fd);
 		return HTTP_STATUS_OK;
 	}
 
-	HttpStatus arrangeFileListing(ResourceLocator* rl)
+	HttpStatus arrangeFileListing()
 	{
-		std::cout << "arrange " << rl->fd << std::endl;
+		std::cout << "arrange " << src.fd << std::endl;
 
-		if(!rl->fetchName() || !strstr(rl->name, davRootName))
+		if(!src.fetchName() || !strstr(src.name, davRootName))
 			return HTTP_STATUS_FORBIDDEN;
 
-		memmove(rl->name, rl->name+strlen(davRootName), strlen(rl->name)-strlen(davRootName)+1);
+		memmove(src.name, src.name+strlen(davRootName), strlen(src.name)-strlen(davRootName)+1);
 
-		if(!strlen(rl->name))
-			strcat(rl->name, "/");
+		if(!strlen(src.name))
+			strcat(src.name, "/");
 
-		if(fstat(rl->fd, &rl->st) < 0) {
-			std::cerr << "Could not stat " << rl->name << ": " << strerror(errno) << std::endl;
+		if(fstat(src.fd, &src.st) < 0) {
+			std::cerr << "Could not stat " << src.name << ": " << strerror(errno) << std::endl;
 			return HTTP_STATUS_FORBIDDEN;
 		}
 
-		rl->dir = nullptr;
+		src.dir = nullptr;
 
 		return HTTP_STATUS_MULTI_STATUS;
 	}
 
-	HttpStatus arrangeDirectoryListing(ResourceLocator* rl)
+	HttpStatus arrangeDirectoryListing()
 	{
-		std::cout << "arrange " << rl->fd << std::endl;
+		std::cout << "arrange " << src.fd << std::endl;
 
-		rl->dir = fdopendir(rl->fd);
-		std::cout << "arrange dir" << rl->dir << std::endl;
+		src.dir = fdopendir(src.fd);
+		std::cout << "arrange dir" << src.dir << std::endl;
 
-		if(!rl->dir) {
+		if(!src.dir) {
 			std::cerr << "Unable to open directory for listing: " << strerror(errno) << std::endl;
-			close(rl->fd);
+			close(src.fd);
 			return HTTP_STATUS_FORBIDDEN;
 		}
 
-		rewinddir(rl->dir);
-		struct dirent *de = readdir(rl->dir);
+		rewinddir(src.dir);
+		struct dirent *de = readdir(src.dir);
 		if(de) {
-			strcpy(rl->name, de->d_name);
-			if(stat(de->d_name, &rl->st) < 0) {
+			strcpy(src.name, de->d_name);
+			if(stat(de->d_name, &src.st) < 0) {
 				std::cerr << "Could not stat " << de->d_name << ": " << strerror(errno) << std::endl;
-				closedir(rl->dir);
-				close(rl->fd);
+				closedir(src.dir);
+				close(src.fd);
 				return HTTP_STATUS_FORBIDDEN;
 			}
 		}
@@ -309,21 +310,21 @@ class HttpSession: protected HttpLogic<HttpSession, Types>
 		return HTTP_STATUS_MULTI_STATUS;
 	}
 
-	HttpStatus generateListing(ResourceLocator* rl, const DavProperty* prop)
+	HttpStatus generateListing(const DavProperty* prop)
 	{
-		std::cout << "generate " << rl->fd << std::endl;
-		std::cout << "generate dir " << rl->dir << std::endl;
+		std::cout << "generate " << src.fd << std::endl;
+		std::cout << "generate dir " << src.dir << std::endl;
 
 		if(!prop) {
-			sendChunk(rl->name);
+			sendChunk(src.name);
 		} else if(prop == Types::davProperties + 0) {
 			char temp[32];
-			sprintf(temp, "%d", (int)rl->st.st_size);
+			sprintf(temp, "%d", (int)src.st.st_size);
 			sendChunk(temp);
 		} else if(prop == Types::davProperties + 1) {
 			sendChunk("Thu, 01 Jan 1970 00:00:00 GMT");
 		} else if(prop == Types::davProperties + 2) {
-			if(S_ISDIR(rl->st.st_mode))
+			if(S_ISDIR(src.st.st_mode))
 				sendChunk("<collection/>");
 		} else {
 			return HTTP_STATUS_INTERNAL_SERVER_ERROR;
@@ -332,47 +333,47 @@ class HttpSession: protected HttpLogic<HttpSession, Types>
 		return HTTP_STATUS_OK;
 	}
 
-	HttpStatus generateDirectoryListing(ResourceLocator* rl, const DavProperty* prop)
+	HttpStatus generateDirectoryListing(const DavProperty* prop)
 	{
-		return generateListing(rl, prop);
+		return generateListing(prop);
 	}
 
-	HttpStatus generateFileListing(ResourceLocator* rl, const DavProperty* prop)
+	HttpStatus generateFileListing(const DavProperty* prop)
 	{
-		return generateListing(rl, prop);
+		return generateListing(prop);
 	}
 
-	bool stepListing(ResourceLocator* rl)
+	bool stepListing()
 	{
-		std::cout << "step " << rl->fd << std::endl;
-		std::cout << "step dir " << rl->dir << std::endl;
+		std::cout << "step " << src.fd << std::endl;
+		std::cout << "step dir " << src.dir << std::endl;
 
-		struct dirent *de = readdir(rl->dir);
+		struct dirent *de = readdir(src.dir);
 		if(de) {
-			strcpy(rl->name, de->d_name);
-			if(fstatat(rl->fd, de->d_name, &rl->st, 0) < 0) {
+			strcpy(src.name, de->d_name);
+			if(fstatat(src.fd, de->d_name, &src.st, 0) < 0) {
 				std::cerr << "Could not stat " << de->d_name << ": " << strerror(errno) << std::endl;
 				return false;
 			}
 			return true;
 		} else {
-			closedir(rl->dir);
-			rl->dir = nullptr;
+			closedir(src.dir);
+			src.dir = nullptr;
 			return false;
 		}
 	}
 
-	HttpStatus fileListingDone(ResourceLocator* rl)
+	HttpStatus fileListingDone()
 	{
-		std::cout << "done " << rl->fd << std::endl;
-		close(rl->fd);
+		std::cout << "done " << src.fd << std::endl;
+		close(src.fd);
 		return HTTP_STATUS_MULTI_STATUS;
 	}
 
-	HttpStatus directoryListingDone(ResourceLocator* rl)
+	HttpStatus directoryListingDone()
 	{
-		std::cout << "done " << rl->fd << std::endl;
-		close(rl->fd);
+		std::cout << "done " << src.fd << std::endl;
+		close(src.fd);
 		return HTTP_STATUS_MULTI_STATUS;
 	}
 

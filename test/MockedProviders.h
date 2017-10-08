@@ -37,18 +37,12 @@ namespace {
 			DavProperty("DAV:", "getcontentlength")
 		};
 
-		struct ResourceLocator {
-			std::string path;
-		};
-
-		typedef ResourceLocator SourceLocator;
-		typedef ResourceLocator DestinationLocator;
 	};
 
 	struct MockedHttpLogic: public HttpLogic<MockedHttpLogic, Types> {
-		using ResourceLocator = Types::ResourceLocator;
-		using SourceLocator = Types::SourceLocator;
-		using DestinationLocator = Types::DestinationLocator;
+		struct ResourceLocator {
+			std::string path;
+		} src, dst;
 
 		enum ErrAt {
 			None,
@@ -71,143 +65,153 @@ namespace {
 		void send(const char* str, unsigned int length) {}
 		void flush() {}
 
-		void resetLocator(ResourceLocator* rl) {
+		void resetSourceLocator() {
 			MOCK(ResourceLocator)::CALL(reset);
-			rl->path.clear();
+			src.path.clear();
 		}
 
-		DavAccess accessible(ResourceLocator* rl, bool authenticated)
+		void resetDestinationLocator() {
+			MOCK(ResourceLocator)::CALL(reset);
+			dst.path.clear();
+		}
+
+		DavAccess sourceAccessible(bool authenticated)
 		{
 			return DavAccess::Dav;
 		}
 
-		HttpStatus enter(ResourceLocator* rl, const char* str, unsigned int length) {
+		HttpStatus enterSource(const char* str, unsigned int length) {
 			MOCK(ResourceLocator)::CALL(enter).withStringParam(std::string(str, length).c_str());
-			rl->path += std::string("/") + std::string(str, length);
+			src.path += std::string("/") + std::string(str, length);
 			return HTTP_STATUS_OK;
 		}
 
-		static HttpStatus createDirectory(DestinationLocator* rl, const char* dstName, uint32_t length) {
+		HttpStatus enterDestination(const char* str, unsigned int length) {
+			MOCK(ResourceLocator)::CALL(enter).withStringParam(std::string(str, length).c_str());
+			dst.path += std::string("/") + std::string(str, length);
+			return HTTP_STATUS_OK;
+		}
+
+		HttpStatus createDirectory(const char* dstName, uint32_t length) {
 			MOCK(ContentProvider)::CALL(createDirectory)
-			.withStringParam((rl->path + std::string("/") + std::string(dstName, length)).c_str());
+			.withStringParam((dst.path + std::string("/") + std::string(dstName, length)).c_str());
 			return HTTP_STATUS_OK;
 		}
 
-		static HttpStatus remove(DestinationLocator* rl, const char* dstName, uint32_t length) {
+		HttpStatus remove(const char* dstName, uint32_t length) {
 			MOCK(ContentProvider)::CALL(remove)
-			.withStringParam((rl->path + std::string("/") + std::string(dstName, length)).c_str());
+			.withStringParam((dst.path + std::string("/") + std::string(dstName, length)).c_str());
 			return HTTP_STATUS_OK;
 		}
 
-		static HttpStatus copy(SourceLocator* src, DestinationLocator* dstDir, const char* dstName, uint32_t length, bool overwrite) {
+		HttpStatus copy(const char* dstName, uint32_t length, bool overwrite) {
 			MOCK(ContentProvider)::CALL(copy)
-			.withStringParam(src->path.c_str())
-			.withStringParam((dstDir->path + std::string("/") + std::string(dstName, length)).c_str())
+			.withStringParam(src.path.c_str())
+			.withStringParam((dst.path + std::string("/") + std::string(dstName, length)).c_str())
 			.withParam(overwrite);
 			return HTTP_STATUS_OK;
 		}
 
-		static HttpStatus move(SourceLocator* src, DestinationLocator* dstDir, const char* dstName, uint32_t length, bool overwrite) {
+		HttpStatus move(const char* dstName, uint32_t length, bool overwrite) {
 			MOCK(ContentProvider)::CALL(move)
-			.withStringParam(src->path.c_str())
-			.withStringParam((dstDir->path + std::string("/") + std::string(dstName, length)).c_str())
+			.withStringParam(src.path.c_str())
+			.withStringParam((dst.path + std::string("/") + std::string(dstName, length)).c_str())
 			.withParam(overwrite);
 			return HTTP_STATUS_OK;
 		}
 
 		// Upload
 
-		static HttpStatus arrangeReceiveInto(DestinationLocator* rl, const char* dstName, uint32_t length) {
-			resource = rl;
+		HttpStatus arrangeReceiveInto(const char* dstName, uint32_t length) {
+			resource = &dst;
 			MOCK(ContentProvider)::CALL(receiveInto)
-			.withStringParam((rl->path + std::string("/") + std::string(dstName, length)).c_str());
+			.withStringParam((dst.path + std::string("/") + std::string(dstName, length)).c_str());
 			temp.clear();
 			content.clear();
 			workerCalled = false;
 			return errAt != ErrAt::OpenForWriting ? HTTP_STATUS_OK : HTTP_STATUS_FORBIDDEN;
 		}
 
-		static HttpStatus writeContent(DestinationLocator* rl, const char* buff, uint32_t length) {
+		HttpStatus writeContent(const char* buff, uint32_t length) {
 			temp += std::string(buff, length);
-			CHECK(resource == rl);
+			CHECK(resource == &dst);
 			workerCalled = true;
 			return errAt != ErrAt::Writing  ? HTTP_STATUS_OK : HTTP_STATUS_FORBIDDEN;
 		}
 
-		static HttpStatus contentWritten(DestinationLocator* rl) {
+		HttpStatus contentWritten() {
 			content = temp;
-			CHECK(resource == rl);
+			CHECK(resource == &dst);
 			MOCK(ContentProvider)::CALL(contentWritten);
 			return errAt != ErrAt::CloseForWriting ? HTTP_STATUS_OK : HTTP_STATUS_FORBIDDEN;
 		}
 
 		// Download
 
-		static HttpStatus arrangeSendFrom(SourceLocator* rl, uint32_t &size) {
-			resource = rl;
+		HttpStatus arrangeSendFrom(uint32_t &size) {
+			resource = &src;
 			MOCK(ContentProvider)::CALL(sendFrom)
-			.withStringParam(rl->path.c_str());
+			.withStringParam(src.path.c_str());
 			workerCalled = false;
 			return errAt != ErrAt::OpenForReading ? HTTP_STATUS_OK : HTTP_STATUS_FORBIDDEN;
 		}
 
-		static HttpStatus readContent(SourceLocator* rl) {
-			CHECK(resource == rl);
+		HttpStatus readContent() {
+			CHECK(resource == &src);
 			workerCalled = true;
 			return errAt != ErrAt::Reading ? HTTP_STATUS_OK : HTTP_STATUS_FORBIDDEN;
 		}
 
-		static HttpStatus contentRead(SourceLocator* rl) {
-			CHECK(resource == rl);
+		HttpStatus contentRead() {
+			CHECK(resource == &src);
 			MOCK(ContentProvider)::CALL(contentRead);
 			return errAt != ErrAt::CloseForReading ? HTTP_STATUS_OK : HTTP_STATUS_FORBIDDEN;
 		}
 
 		// Listing
 
-		static HttpStatus arrangeFileListing(SourceLocator* rl) {
-			resource = rl;
+		HttpStatus arrangeFileListing() {
+			resource = &src;
 			MOCK(ContentProvider)::CALL(listFile)
-			.withStringParam(rl->path.c_str());
+			.withStringParam(src.path.c_str());
 			workerCalled = false;
 			return errAt != ErrAt::OpenForListing ? HTTP_STATUS_OK : HTTP_STATUS_FORBIDDEN;
 		}
 
-		static HttpStatus arrangeDirectoryListing(SourceLocator* rl) {
-			resource = rl;
+		HttpStatus arrangeDirectoryListing() {
+			resource = &src;
 			MOCK(ContentProvider)::CALL(listDirectory)
-			.withStringParam(rl->path.c_str());
+			.withStringParam(src.path.c_str());
 			workerCalled = false;
 			return errAt != ErrAt::OpenForListing ? HTTP_STATUS_OK : HTTP_STATUS_FORBIDDEN;
 		}
 
-
-		static HttpStatus generateFileListing(SourceLocator* rl, const DavProperty* prop) {
-			CHECK(resource == rl);
+		HttpStatus generateFileListing(const DavProperty* prop) {
+			CHECK(resource == &src);
 			CHECK(!prop || prop == Types::davProperties);
 			workerCalled = true;
 			return errAt != ErrAt::Listing ? HTTP_STATUS_OK : HTTP_STATUS_FORBIDDEN;
 		}
 
-		static HttpStatus generateDirectoryListing(SourceLocator* rl, const DavProperty* prop) {
-			CHECK(resource == rl);
+		HttpStatus generateDirectoryListing(const DavProperty* prop) {
+			CHECK(resource == &src);
 			CHECK(!prop || prop == Types::davProperties);
 			workerCalled = true;
 			return errAt != ErrAt::Listing ? HTTP_STATUS_OK : HTTP_STATUS_FORBIDDEN;
 		}
 
-		bool stepListing(SourceLocator* rl) {
+		bool stepListing() {
 			return false;
 		}
 
-		static HttpStatus fileListingDone(SourceLocator* rl) {
-			CHECK(resource == rl);
+		HttpStatus fileListingDone() {
+			CHECK(resource == &src);
 			MOCK(ContentProvider)::CALL(listingDone);
 			return errAt != ErrAt::CloseForListing ? HTTP_STATUS_OK : HTTP_STATUS_FORBIDDEN;
 		}
 
-		static HttpStatus directoryListingDone(SourceLocator* rl) {
-			CHECK(resource == rl);
+		HttpStatus directoryListingDone() {
+			CHECK(resource == &src);
 			MOCK(ContentProvider)::CALL(listingDone);
 			return errAt != ErrAt::CloseForListing ? HTTP_STATUS_OK : HTTP_STATUS_FORBIDDEN;
 		}

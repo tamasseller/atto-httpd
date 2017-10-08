@@ -30,6 +30,8 @@
 
 #include "algorithm/Str.h"
 
+// TODO add checks for destination accessibility.
+
 typedef http_status HttpStatus;
 
 template<class Provider, class Resources>
@@ -48,8 +50,6 @@ private:
 	typedef void (*HeaderFieldParser)(HttpLogic*, const char*, uint32_t);
 	typedef Keywords<HeaderFieldParser, 4> HeaderKeywords;
 	typedef DavRequestParser<Resources::davStackSize> DavReqParser;
-	typedef typename Resources::SourceLocator SourceResource;
-	typedef typename Resources::DestinationLocator DestinationResource;
 
 	static const HeaderKeywords headerKeywords;
 
@@ -96,8 +96,6 @@ private:
 	Depth depth;
 
 	HeaderFieldParser fieldParser;
-	SourceResource sourceResource;
-	DestinationResource destinationResource;
 
 	HttpStatus status;
 	TemporaryStringBuffer<32> tempString;
@@ -119,7 +117,7 @@ private:
 		// into depth property immediately in the afterHeaderValue method
 		typename DepthKeywords::Matcher depthMatcher;
 
-		// Only used for WebDac request processing, after all the data
+		// Only used for WebDAV request processing, after all the data
 		// originally contained in the header fields are copied
 		DavReqParser davReqParser;
 	};
@@ -183,32 +181,30 @@ protected:
 	/*
 	 * Default implementation of application hooks.
 	 */
-	template<class Resource>
-	inline DavAccess accessible(Resource* rl, bool authenticated) { return DavAccess::NoDav; }
 
-	template<class Resource>
-	inline void resetLocator(Resource* rl) {}
-
-	template<class Resource>
-	inline HttpStatus enter(Resource* rl, const char* str, unsigned int length) { return HTTP_STATUS_OK; }
-
-	inline HttpStatus remove(DestinationResource* rl, const char* dstName, uint32_t length) { return HTTP_STATUS_FORBIDDEN; }
-	inline HttpStatus createDirectory(DestinationResource* rl, const char* dstName, uint32_t length) { return HTTP_STATUS_FORBIDDEN; }
-	inline HttpStatus copy(SourceResource* src, DestinationResource* dstDir, const char* dstName, uint32_t length, bool overwrite) { return HTTP_STATUS_FORBIDDEN; }
-	inline HttpStatus move(SourceResource* src, DestinationResource* dstDir, const char* dstName, uint32_t length, bool overwrite) { return HTTP_STATUS_FORBIDDEN; }
-	inline HttpStatus arrangeReceiveInto(DestinationResource* rl, const char* dstName, uint32_t length) { return HTTP_STATUS_OK; }
-	inline HttpStatus writeContent(DestinationResource* rl, const char* buff, uint32_t length) { return HTTP_STATUS_OK; }
-	inline HttpStatus contentWritten(DestinationResource* rl) { return HTTP_STATUS_OK; }
-	inline HttpStatus arrangeSendFrom(SourceResource* rl, uint32_t &size) { return HTTP_STATUS_NOT_FOUND; }
-	inline HttpStatus readContent(SourceResource* rl) { return HTTP_STATUS_NOT_FOUND; }
-	inline HttpStatus contentRead(SourceResource* rl) { return HTTP_STATUS_NOT_FOUND; }
-	inline HttpStatus arrangeFileListing(SourceResource* rl) { return HTTP_STATUS_FORBIDDEN; }
-	inline HttpStatus arrangeDirectoryListing(SourceResource* rl) { return HTTP_STATUS_FORBIDDEN; }
-	inline HttpStatus generateDirectoryListing(SourceResource* rl, const DavProperty* prop) { return HTTP_STATUS_FORBIDDEN; }
-	inline HttpStatus generateFileListing(SourceResource* rl, const DavProperty* prop) { return HTTP_STATUS_FORBIDDEN; }
-	inline bool stepListing(SourceResource* rl) { return false; }
-	inline HttpStatus fileListingDone(SourceResource* rl) { return HTTP_STATUS_FORBIDDEN; }
-	inline HttpStatus directoryListingDone(SourceResource* rl) { return HTTP_STATUS_FORBIDDEN; }
+	inline DavAccess sourceAccessible(bool authenticated) { return DavAccess::NoDav; }
+	inline DavAccess destinationAccessible(bool authenticated) { return DavAccess::NoDav; }
+	inline void resetSourceLocator() {}
+	inline void resetDestinationLocator() {}
+	inline HttpStatus enterSource(const char* str, unsigned int length) { return HTTP_STATUS_OK; }
+	inline HttpStatus enterDestination(const char* str, unsigned int length) { return HTTP_STATUS_OK; }
+	inline HttpStatus remove(const char* dstName, uint32_t length) { return HTTP_STATUS_FORBIDDEN; }
+	inline HttpStatus createDirectory(const char* dstName, uint32_t length) { return HTTP_STATUS_FORBIDDEN; }
+	inline HttpStatus copy(const char* dstName, uint32_t length, bool overwrite) { return HTTP_STATUS_FORBIDDEN; }
+	inline HttpStatus move(const char* dstName, uint32_t length, bool overwrite) { return HTTP_STATUS_FORBIDDEN; }
+	inline HttpStatus arrangeReceiveInto(const char* dstName, uint32_t length) { return HTTP_STATUS_OK; }
+	inline HttpStatus writeContent(const char* buff, uint32_t length) { return HTTP_STATUS_OK; }
+	inline HttpStatus contentWritten() { return HTTP_STATUS_OK; }
+	inline HttpStatus arrangeSendFrom(uint32_t &size) { return HTTP_STATUS_NOT_FOUND; }
+	inline HttpStatus readContent() { return HTTP_STATUS_NOT_FOUND; }
+	inline HttpStatus contentRead() { return HTTP_STATUS_NOT_FOUND; }
+	inline HttpStatus arrangeFileListing() { return HTTP_STATUS_FORBIDDEN; }
+	inline HttpStatus arrangeDirectoryListing() { return HTTP_STATUS_FORBIDDEN; }
+	inline HttpStatus generateDirectoryListing(const DavProperty* prop) { return HTTP_STATUS_FORBIDDEN; }
+	inline HttpStatus generateFileListing(const DavProperty* prop) { return HTTP_STATUS_FORBIDDEN; }
+	inline bool stepListing() { return false; }
+	inline HttpStatus fileListingDone() { return HTTP_STATUS_FORBIDDEN; }
+	inline HttpStatus directoryListingDone() { return HTTP_STATUS_FORBIDDEN; }
 public:
 	inline AuthStatus getAuthStatus();
 	inline HttpStatus getStatus();
@@ -396,7 +392,7 @@ parseDestination(HttpLogic* self, const char* buff, uint32_t length)
 			self->PathParser<HttpLogic>::reset();
 			self->UrlParser<HttpLogic>::reset();
 			self->parseSource = false;
-			((Provider*)self)->resetLocator(&self->destinationResource);
+			((Provider*)self)->resetDestinationLocator();
 			self->tempString.clear();
 		} else {
 			self->UrlParser<HttpLogic>::done();
@@ -417,7 +413,7 @@ template<class Provider, class Resources>
 inline void HttpLogic<Provider, Resources>::
 beforeElement() {
 	if(!parseSource	&& tempString.length())
-		((Provider*)this)->enter(&destinationResource, tempString.data(), tempString.length());
+		((Provider*)this)->enterDestination(tempString.data(), tempString.length());
 
 	tempString.clear();
 }
@@ -426,7 +422,7 @@ template<class Provider, class Resources>
 inline void HttpLogic<Provider, Resources>::
 elementDone() {
 	if(parseSource)
-		status = ((Provider*)this)->enter(&sourceResource, tempString.data(), tempString.length());
+		status = ((Provider*)this)->enterSource(tempString.data(), tempString.length());
 }
 
 template<class Provider, class Resources>
@@ -466,9 +462,9 @@ inline void HttpLogic<Provider, Resources>::beforeUrl() {
 	}
 
 	if(parseSource)
-		((Provider*)this)->resetLocator(&sourceResource);
+		((Provider*)this)->resetSourceLocator();
 	else
-		((Provider*)this)->resetLocator(&destinationResource);
+		((Provider*)this)->resetDestinationLocator();
 }
 
 template<class Provider, class Resources>
@@ -530,7 +526,7 @@ inline void HttpLogic<Provider, Resources>::afterHeaders()
 		switch(HttpRequestParser<HttpLogic>::getMethod()) {
 			case HttpRequestParser<HttpLogic>::Method::HTTP_PUT:
 			case HttpRequestParser<HttpLogic>::Method::HTTP_POST:
-				status = ((Provider*)this)->arrangeReceiveInto(&destinationResource, tempString.data(), tempString.length());
+				status = ((Provider*)this)->arrangeReceiveInto(tempString.data(), tempString.length());
 				break;
 			case HttpRequestParser<HttpLogic>::Method::HTTP_PROPFIND:
 				davReqParser.reset();
@@ -552,7 +548,7 @@ inline int HttpLogic<Provider, Resources>::onBody(const char *at, size_t length)
 		switch(HttpRequestParser<HttpLogic>::getMethod()) {
 			case HttpRequestParser<HttpLogic>::Method::HTTP_PUT:
 			case HttpRequestParser<HttpLogic>::Method::HTTP_POST:
-				status = ((Provider*)this)->writeContent(&destinationResource, at, length);
+				status = ((Provider*)this)->writeContent(at, length);
 				break;
 			case HttpRequestParser<HttpLogic>::Method::HTTP_PROPFIND:
 				if(!davReqParser.parseDavRequest(at, length))
@@ -584,8 +580,8 @@ inline bool HttpLogic<Provider, Resources>::generatePropfindResponse(bool file, 
 		sendChunk(xmlFileHeader);
 
 		HttpStatus ret = file ?
-				((Provider*)this)->generateFileListing(&sourceResource, nullptr) :
-				((Provider*)this)->generateDirectoryListing(&sourceResource, nullptr);
+				((Provider*)this)->generateFileListing(nullptr) :
+				((Provider*)this)->generateDirectoryListing(nullptr);
 
 		if(isError(ret))
 			error = true;
@@ -599,8 +595,8 @@ inline bool HttpLogic<Provider, Resources>::generatePropfindResponse(bool file, 
 					sendPropStart(prop);
 
 					HttpStatus ret = file ?
-							((Provider*)this)->generateFileListing(&sourceResource, prop) :
-							((Provider*)this)->generateDirectoryListing(&sourceResource, prop);
+							((Provider*)this)->generateFileListing(prop) :
+							((Provider*)this)->generateDirectoryListing(prop);
 
 					if(isError(ret)) {
 						error = true;
@@ -639,8 +635,8 @@ inline bool HttpLogic<Provider, Resources>::generatePropfindResponse(bool file, 
 						sendPropStart(prop);
 
 						HttpStatus ret = file ?
-								((Provider*)this)->generateFileListing(&sourceResource, prop) :
-								((Provider*)this)->generateDirectoryListing(&sourceResource, prop);
+								((Provider*)this)->generateFileListing(prop) :
+								((Provider*)this)->generateDirectoryListing(prop);
 
 						if(isError(ret)) {
 							error = true;
@@ -710,7 +706,7 @@ inline bool HttpLogic<Provider, Resources>::generatePropfindResponse(bool file, 
 		if(file)
 			break;
 
-		if(!((Provider*)this)->stepListing(&sourceResource))
+		if(!((Provider*)this)->stepListing())
 			break;
 
 	}
@@ -723,7 +719,7 @@ template<class Provider, class Resources>
 inline void HttpLogic<Provider, Resources>::afterRequest() {
 	uint32_t length;
 
-	DavAccess access = ((Provider*)this)->accessible(&sourceResource, authState == AuthStatus::Ok);
+	DavAccess access = ((Provider*)this)->sourceAccessible(authState == AuthStatus::Ok);
 
 	if(access == DavAccess::AuthNeeded && authState != AuthStatus::Ok)
 		status = (authState == AuthStatus::None) ? HTTP_STATUS_UNAUTHORIZED : HTTP_STATUS_FORBIDDEN;
@@ -731,38 +727,38 @@ inline void HttpLogic<Provider, Resources>::afterRequest() {
 	if(!isError(status)) {
 		switch(HttpRequestParser<HttpLogic>::getMethod()) {
 			case HttpRequestParser<HttpLogic>::Method::HTTP_DELETE:
-				status = ((Provider*)this)->remove(&destinationResource, tempString.data(), tempString.length());
+				status = ((Provider*)this)->remove(tempString.data(), tempString.length());
 				break;
 
 			case HttpRequestParser<HttpLogic>::Method::HTTP_GET:
 			case HttpRequestParser<HttpLogic>::Method::HTTP_HEAD:
-				status = ((Provider*)this)->arrangeSendFrom(&sourceResource, length);
+				status = ((Provider*)this)->arrangeSendFrom(length);
 				break;
 
 			case HttpRequestParser<HttpLogic>::Method::HTTP_PUT:
 			case HttpRequestParser<HttpLogic>::Method::HTTP_POST:
-				status = ((Provider*)this)->contentWritten(&destinationResource);
+				status = ((Provider*)this)->contentWritten();
 				break;
 
 			case HttpRequestParser<HttpLogic>::Method::HTTP_COPY:
 				if(access == DavAccess::NoDav)
 					status = HTTP_STATUS_METHOD_NOT_ALLOWED;
 				else
-				status = ((Provider*)this)->copy(&sourceResource, &destinationResource, tempString.data(), tempString.length(), overwrite);
+				status = ((Provider*)this)->copy(tempString.data(), tempString.length(), overwrite);
 				break;
 
 			case HttpRequestParser<HttpLogic>::Method::HTTP_MKCOL:
 				if(access == DavAccess::NoDav)
 					status = HTTP_STATUS_METHOD_NOT_ALLOWED;
 				else
-				status = ((Provider*)this)->createDirectory(&destinationResource, tempString.data(), tempString.length());
+				status = ((Provider*)this)->createDirectory(tempString.data(), tempString.length());
 				break;
 
 			case HttpRequestParser<HttpLogic>::Method::HTTP_MOVE:
 				if(access == DavAccess::NoDav)
 					status = HTTP_STATUS_METHOD_NOT_ALLOWED;
 				else
-					status = ((Provider*)this)->move(&sourceResource, &destinationResource, tempString.data(), tempString.length(), overwrite);
+					status = ((Provider*)this)->move(tempString.data(), tempString.length(), overwrite);
 				break;
 
 			case HttpRequestParser<HttpLogic>::Method::HTTP_PROPFIND:
@@ -774,7 +770,7 @@ inline void HttpLogic<Provider, Resources>::afterRequest() {
 					switch(depth) {
 						case Depth::File:
 						case Depth::Directory:
-							status = ((Provider*)this)->arrangeFileListing(&sourceResource);
+							status = ((Provider*)this)->arrangeFileListing();
 							break;
 						case Depth::Traverse:
 							status = HTTP_STATUS_NOT_IMPLEMENTED;
@@ -833,14 +829,14 @@ inline void HttpLogic<Provider, Resources>::afterRequest() {
 		bool error = false;
 		switch(HttpRequestParser<HttpLogic>::getMethod()) {
 			case HttpRequestParser<HttpLogic>::Method::HTTP_GET:
-				if(isError(((Provider*)this)->readContent(&sourceResource)))
+				if(isError(((Provider*)this)->readContent()))
 						error = true;
 
 			/*
 			 * no break to allow fall-through for ensuring correct GET-HEAD pairing
 			 */
 			case HttpRequestParser<HttpLogic>::Method::HTTP_HEAD:
-				if(!error && isError(((Provider*)this)->contentRead(&sourceResource)))
+				if(!error && isError(((Provider*)this)->contentRead()))
 						error = true;
 
 				break;
@@ -848,17 +844,17 @@ inline void HttpLogic<Provider, Resources>::afterRequest() {
 				sendChunk(xmlFirstHeader);
 
 				if(generatePropfindResponse(true, davReqParser.getType())) {
-					if(isError(((Provider*)this)->fileListingDone(&sourceResource)))
+					if(isError(((Provider*)this)->fileListingDone()))
 						error = true;
 					else if(depth == Depth::Directory) {
-						HttpStatus ret = ((Provider*)this)->arrangeDirectoryListing(&sourceResource);
+						HttpStatus ret = ((Provider*)this)->arrangeDirectoryListing();
 						if(isError(ret))
 							error = true;
 						else {
 							if(ret != HTTP_STATUS_NO_CONTENT && !generatePropfindResponse(false, davReqParser.getType()))
 								error = true;
 
-							if(isError(((Provider*)this)->directoryListingDone(&sourceResource)))
+							if(isError(((Provider*)this)->directoryListingDone()))
 								error = true;
 						}
 
