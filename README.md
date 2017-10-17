@@ -5,6 +5,9 @@ This is a rudimentary HTTP server framework,
 based on the node.js version of the ngnix HTTP parser,
 and also a generous amount genuine code. 
 It is intended to be used mainly in microcontroller environment.
+Its aim is to implement the logic required to handle a single session, 
+accepting the connections and managing contexts is enterily up to the user, 
+so single or multi threaded or pooled operation can be implemented easily.
 
 This library uses zero-overhead modern C++ features, and that means that 
 **it requires a decent compiler with stable C++11 support** (like GCC 5+).
@@ -36,8 +39,10 @@ _Check out the test/end2end directory for an example of usage._
 
 The user is required to subclass the HttpLogic template in a CRTP fashion,
 passing the the derived type as the first type argument to the parent. 
-Also some static configuration is required to be passed to it, 
-as the second argument. See the example for details.
+Also some static configuration is required to be passed to it, as the 
+second argument. This subclass provides the necessary implementation of 
+the platform specific functionality and the resulting class is the
+completed session handler. See the example for details.
 
 As the http server logic is provided in the form of a class template, 
 the library mainly consists of header files.
