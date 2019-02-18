@@ -107,6 +107,7 @@ private:
 	virtual void onNumber(int32_t value) {}
 	virtual void onString(const char *at, size_t length) {}
 	virtual void afterValue(JsonValueType) {}
+	virtual void onParentLeave() {}
 
 public:
 	/**
@@ -231,7 +232,7 @@ public:
 
 private:
 	/// Reset the common parser state, also reset children.
-	inline virtual void reset(EntityFilter* parent) {
+	inline virtual void reset(EntityFilter* parent) override {
 		EntityFilter::reset(parent);
 
 		for(auto e: kw)
@@ -245,13 +246,13 @@ private:
 	}
 
 	/// Update the keyword matcher.
-	inline virtual void onKey(const char *at, size_t length) {
+	inline virtual void onKey(const char *at, size_t length) override {
 		if(getDepth() == 1)
 			matcher.progress(kw, at, length);
 	}
 
 	/// Check for a keyword match, enter children if needed.
-	inline virtual void beforeValue(Parser* parser, JsonValueType type) {
+	inline virtual void beforeValue(Parser* parser, JsonValueType type) override {
 		if(getDepth() == 1) {
 			if(const typename Kw::Keyword* result = matcher.match(kw)) {
 				EntityFilter* child = result->getValue();
@@ -259,6 +260,12 @@ private:
 				child->beforeValue(parser, type);
 			}
 		}
+	}
+
+	inline virtual void afterValue(JsonValueType) override
+	{
+		for(const auto &k : kw)
+			k.getValue()->onParentLeave();
 	}
 };
 
@@ -268,7 +275,7 @@ class NumberExtractor: public EntityFilter {
 	int &result;
 
 	/// Write output when number is received.
-	inline virtual void onNumber(int32_t value) {
+	inline virtual void onNumber(int32_t value) override {
 		result = value;
 	}
 public:
@@ -281,7 +288,7 @@ class BoolExtractor: public EntityFilter {
 	bool &result;
 
 	/// Write output when boolean is received.
-	inline virtual void onBoolean(bool value) {
+	inline virtual void onBoolean(bool value) override {
 		result = value;
 	}
 
@@ -306,18 +313,18 @@ class StringExtractor: public EntityFilter {
 	size_t offset;
 
 	/// Reset the offset counter to the start of the output storage.
-	inline virtual void beforeValue(Parser* parser, JsonValueType) {
+	inline virtual void beforeValue(Parser* parser, JsonValueType) override {
 		offset = 0;
 	}
 
 	/// Copy data to the end of the output.
-	inline virtual void onString(const char *at, size_t length) {
+	inline virtual void onString(const char *at, size_t length) override {
 		while(offset < n-1)
 			result[offset++] = *at++;
 	}
 
 	/// Null-terminate output.
-	inline virtual void afterValue(JsonValueType) {
+	inline virtual void afterValue(JsonValueType) override {
 		result[offset] = '\0';
 	}
 
@@ -395,7 +402,7 @@ class JsonParser: public UJson<JsonParser<maxDepth>, maxDepth>, public EntityFil
 			}
         }
 
-        virtual void enter(EntityFilter *filter) {
+        virtual void enter(EntityFilter *filter) override {
         	this->filter = filter;
         }
 
