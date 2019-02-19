@@ -230,7 +230,7 @@ public:
 	inline ObjectFilter(T... t): kw{typename Kw::Keyword(t.name, t.child)...} {}
 	inline virtual ~ObjectFilter() {}
 
-private:
+protected:
 	/// Reset the common parser state, also reset children.
 	inline virtual void reset(EntityFilter* parent) override {
 		EntityFilter::reset(parent);
