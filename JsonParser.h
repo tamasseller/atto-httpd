@@ -264,8 +264,10 @@ protected:
 
 	inline virtual void afterValue(JsonValueType) override
 	{
-		for(const auto &k : kw)
-			k.getValue()->onParentLeave();
+		if(getDepth() == 1) {
+			for(const auto &k : kw)
+				k.getValue()->onParentLeave();
+		}
 	}
 };
 
